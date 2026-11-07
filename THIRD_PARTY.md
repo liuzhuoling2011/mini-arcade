@@ -14,7 +14,7 @@
   本仓库为自写逻辑层 + 自写 UI，不整仓拷贝。
 
 ## 飞行棋
-- 规则说明对齐常见中国飞行棋 / Ludo：`6` 起飞、`6` 再掷、撞子回基地、安全格、精确入终点。  
-  参考 MIT 项目 netmanfisher/chinese-ludo、DynamsoftRD/Modern-Ludo、stackiid/ludo-royale 的规则描述后**重写**逻辑与绘制，未 vendoring 其 UI。
+- 规则说明对齐常见中国飞行棋 / Ludo：`6` 起飞、`6` 再掷、撞子回基地、安全格、精确入终点，以及**颜色飞跃**与**飞行通道**捷径。  
+  捷径触发表与同色格索引对齐 MIT 项目 [netmanfisher/chinese-ludo](https://github.com/netmanfisher/chinese-ludo)（并参照 DynamsoftRD/Modern-Ludo 规则描述）后**重写**逻辑与绘制，未 vendoring 其 UI。
 
 各许可证全文见上述项目仓库；分发本合集时请保留本说明与引擎文件头版权声明。

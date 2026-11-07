@@ -1,13 +1,13 @@
 (function () {
   "use strict";
   /*
-   * 中国飞行棋（简化标准规则，自写实现）
-   * 规则对齐常见 MIT 开源描述（chinese-ludo / Modern-Ludo / ludo-royale）：
-   * - 掷 6 才能从基地起飞到起点；掷 6 再掷一次（连掷三次 6 则本回合作废）
-   * - 沿外圈 52 格顺时针前进，到达本色入口后进入 6 格终点航道
-   * - 必须点数刚好到终点；落在非安全格的对方棋子上则撞回基地
-   * - 起点格为安全格；同色可叠子
-   * 详见仓库 THIRD_PARTY.md
+   * 中国飞行棋（自写实现，规则对齐 MIT：netmanfisher/chinese-ludo、DynamsoftRD/Modern-Ludo）
+   * - 掷 6 起飞；掷 6 再掷；连掷三个 6 本回合作废
+   * - 外圈 52 格；本色终点入口后进 6 格航道，点数须刚好到终点
+   * - 撞子回基地；起点安全；同色可叠子
+   * - 颜色飞跃：停在本色格 → 飞到下一本色格；若落到飞行点再触发飞行通道
+   * - 飞行通道：本色「飞行器」触发格 → 对角捷径终点（可再撞子）
+   * 详见 THIRD_PARTY.md
    */
 
   var COLORS = [
@@ -18,12 +18,32 @@
   ];
   var TRACK = 52;
   var HOME_LEN = 6;
-  // Each color's start index on the shared ring, and entry to home stretch
+  // Ring layout aligned with chinese-ludo (MIT): starts every 13 cells.
+  // Our seats red/yellow/blue/green ↔ that project's yellow/blue/red/green roles.
   var START = [0, 13, 26, 39];
-  var ENTRY = [50, 11, 24, 37]; // last ring square before home (one before entering)
+  var ENTRY = [49, 10, 23, 36]; // home-entry squares (no color-jump on these)
+  // Own-color stations on the ring (every 4 cells); landing jumps to the next.
+  var PATH_COLORS = [
+    [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49], // red
+    [2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50], // yellow
+    [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51], // blue
+    [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48]  // green
+  ];
+  // Express flight (飞行通道): trigger → destination (+12 along ring / wrap)
+  var SHORTCUTS = [
+    { trigger: 17, dest: 29 }, // red
+    { trigger: 30, dest: 42 }, // yellow
+    { trigger: 43, dest: 3 },  // blue
+    { trigger: 4, dest: 16 }   // green
+  ];
   // Safe squares: all four starts
   var SAFE = {};
   START.forEach(function (s) { SAFE[s] = 1; });
+  // Quick lookup: which seat owns a color tile (for drawing)
+  var TILE_OWNER = {};
+  PATH_COLORS.forEach(function (tiles, ci) {
+    tiles.forEach(function (t) { TILE_OWNER[t] = ci; });
+  });
 
   var canvas = document.getElementById("board");
   var ctx = canvas.getContext("2d");
@@ -152,35 +172,109 @@
     return found;
   }
 
-  function applyMove(color, pieceIdx, dice) {
-    var opts = destinations(color, pieceIdx, dice);
-    if (!opts.length) return false;
-    var dest = opts[0];
-    var pieces = state.pieces[color];
-
-    if (dest.kind === "takeoff") {
-      pieces[pieceIdx] = START[color];
-      // capture on start? start is safe — no capture
-    } else if (dest.kind === "ring") {
-      pieces[pieceIdx] = dest.abs;
-      if (!SAFE[dest.abs]) {
-        occupants(dest.abs).forEach(function (o) {
-          if (o.color !== color) state.pieces[o.color][o.idx] = null;
-        });
+  function captureAt(color, abs) {
+    if (typeof abs !== "number") return 0;
+    if (SAFE[abs]) return 0;
+    var n = 0;
+    occupants(abs).forEach(function (o) {
+      if (o.color !== color) {
+        state.pieces[o.color][o.idx] = null;
+        n++;
       }
-    } else if (dest.kind === "home") {
-      pieces[pieceIdx] = "H" + dest.home;
-    } else if (dest.kind === "done") {
-      pieces[pieceIdx] = "DONE";
+    });
+    return n;
+  }
+
+  /** After landing on a ring square: color jump and/or flight shortcut (MIT chinese-ludo order). */
+  function resolveFlights(color, pieceIdx) {
+    var msgs = [];
+    var pieces = state.pieces[color];
+    var abs = pieces[pieceIdx];
+    if (typeof abs !== "number") return msgs;
+    // Just took off onto start — no jump (matches chinese-ludo position===0 guard)
+    if (abs === START[color]) return msgs;
+    // Home entry: no color jump
+    if (abs === ENTRY[color]) return msgs;
+
+    var sc = SHORTCUTS[color];
+
+    // Priority 1: express flight trigger
+    if (abs === sc.trigger) {
+      pieces[pieceIdx] = sc.dest;
+      msgs.push("飞行通道");
+      captureAt(color, sc.dest);
+      return msgs;
     }
 
+    // Priority 2: color jump to next same-color station
+    var tiles = PATH_COLORS[color];
+    var ix = tiles.indexOf(abs);
+    if (ix < 0) return msgs;
+    var next = tiles[(ix + 1) % tiles.length];
+    // Do not jump onto/into a square that would skip the home entry incorrectly:
+    // if next is past entry along this color's progress while still on ring loop near finish,
+    // chinese-ludo blocks finish-stretch destinations; our ENTRY is never a jump source,
+    // and next after the tile before ENTRY is ENTRY itself (allowed).
+    pieces[pieceIdx] = next;
+    msgs.push("颜色飞跃");
+    captureAt(color, next);
+
+    // Chain: color jump landing on flight trigger → fly again
+    if (next === sc.trigger) {
+      pieces[pieceIdx] = sc.dest;
+      msgs.push("飞行通道");
+      captureAt(color, sc.dest);
+    }
+    return msgs;
+  }
+
+  function checkWin(color) {
+    var pieces = state.pieces[color];
     if (pieces.every(function (p) { return p === "DONE"; })) {
       state.over = true;
       state.winner = color;
       finish(COLORS[color].name + "方获胜", COLORS[color].name + "色飞机全部到达终点！");
       return true;
     }
-    return true;
+    return false;
+  }
+
+  function applyMove(color, pieceIdx, dice) {
+    var opts = destinations(color, pieceIdx, dice);
+    if (!opts.length) return { ok: false, msgs: [] };
+    var dest = opts[0];
+    var pieces = state.pieces[color];
+    var msgs = [];
+
+    if (dest.kind === "takeoff") {
+      pieces[pieceIdx] = START[color];
+      // start is safe — no capture, no flight
+    } else if (dest.kind === "ring") {
+      pieces[pieceIdx] = dest.abs;
+      captureAt(color, dest.abs);
+      msgs = resolveFlights(color, pieceIdx);
+    } else if (dest.kind === "home") {
+      pieces[pieceIdx] = "H" + dest.home;
+    } else if (dest.kind === "done") {
+      pieces[pieceIdx] = "DONE";
+    }
+
+    checkWin(color);
+    return { ok: true, msgs: msgs };
+  }
+
+  /** Final ring square after dice + flights (for AI scoring). */
+  function finalRingAfter(color, abs) {
+    if (typeof abs !== "number") return abs;
+    if (abs === START[color] || abs === ENTRY[color]) return abs;
+    var sc = SHORTCUTS[color];
+    if (abs === sc.trigger) return sc.dest;
+    var tiles = PATH_COLORS[color];
+    var ix = tiles.indexOf(abs);
+    if (ix < 0) return abs;
+    var next = tiles[(ix + 1) % tiles.length];
+    if (next === sc.trigger) return sc.dest;
+    return next;
   }
 
   function finish(title, msg) {
@@ -266,11 +360,17 @@
     if (state.movable.indexOf(idx) < 0) return;
     var d = state.dice;
     var extra = d === 6;
-    applyMove(state.turn, idx, d);
+    var result = applyMove(state.turn, idx, d);
     state.movable = [];
     draw();
     if (state.over) return;
-    setTimeout(function () { nextTurn(extra); }, 280);
+    var delay = 280;
+    if (result.msgs && result.msgs.length) {
+      updateStatus(result.msgs.join(" → ") + "！");
+      delay = 280 + result.msgs.length * 380;
+      // brief redraw pulse already done; status shows flight
+    }
+    setTimeout(function () { nextTurn(extra); }, delay);
   }
 
   function updateStatus(extra) {
@@ -361,23 +461,66 @@
       ctx.fillText(col.name, b.x + 14, b.y + 28);
     });
 
-    // ring cells
+    // shortcut flight lanes (under cells)
+    SHORTCUTS.forEach(function (sc, ci) {
+      if (activeColors().indexOf(ci) < 0) return;
+      var a = cellXY(sc.trigger), b = cellXY(sc.dest);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      // bow toward center so the lane is visible across the board
+      var mx = (a.x + b.x) / 2 * 0.35 + 300 * 0.65;
+      var my = (a.y + b.y) / 2 * 0.35 + 300 * 0.65;
+      ctx.quadraticCurveTo(mx, my, b.x, b.y);
+      ctx.strokeStyle = COLORS[ci].fill;
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 4;
+      ctx.setLineDash([8, 6]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      // arrow head at dest
+      var ang = Math.atan2(b.y - my, b.x - mx);
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y);
+      ctx.lineTo(b.x - 12 * Math.cos(ang - 0.4), b.y - 12 * Math.sin(ang - 0.4));
+      ctx.lineTo(b.x - 12 * Math.cos(ang + 0.4), b.y - 12 * Math.sin(ang + 0.4));
+      ctx.closePath();
+      ctx.fillStyle = COLORS[ci].fill;
+      ctx.globalAlpha = 0.55;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+
+    // ring cells (color stations tinted; flight triggers marked ✈)
     for (var i = 0; i < TRACK; i++) {
       var p = cellXY(i);
       var isStart = START.indexOf(i) >= 0;
       var startColor = START.indexOf(i);
+      var owner = TILE_OWNER[i];
+      var isTrigger = SHORTCUTS.some(function (sc) { return sc.trigger === i; });
+      var r = isStart || isTrigger ? 16 : 12;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, isStart ? 16 : 12, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
       if (isStart && activeColors().indexOf(startColor) >= 0) {
         ctx.fillStyle = COLORS[startColor].soft;
         ctx.strokeStyle = COLORS[startColor].fill;
+      } else if (owner != null && activeColors().indexOf(owner) >= 0) {
+        ctx.fillStyle = COLORS[owner].soft;
+        ctx.strokeStyle = COLORS[owner].fill;
       } else {
         ctx.fillStyle = "#1e293b";
         ctx.strokeStyle = "#64748b";
       }
       ctx.fill();
-      ctx.lineWidth = 2;
+      ctx.lineWidth = isTrigger ? 3 : 2;
       ctx.stroke();
+      if (isTrigger) {
+        ctx.fillStyle = COLORS[TILE_OWNER[i] != null ? TILE_OWNER[i] : 0].fill;
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("✈", p.x, p.y + 4);
+        ctx.textAlign = "left";
+      }
     }
 
     // home stretches
@@ -480,12 +623,16 @@
     else if (dest.kind === "takeoff") s += 80;
     else if (dest.kind === "ring") {
       s += 10;
-      if (!SAFE[dest.abs]) {
-        var hits = occupants(dest.abs).filter(function (o) { return o.color !== color; });
+      var land = dest.abs;
+      var fin = finalRingAfter(color, land);
+      if (fin !== land) s += 70; // color jump / flight
+      if (SHORTCUTS[color].trigger === land || SHORTCUTS[color].trigger === fin && land !== fin) s += 40;
+      if (!SAFE[fin]) {
+        var hits = occupants(fin).filter(function (o) { return o.color !== color; });
         s += hits.length * 90;
       }
-      // prefer progress
-      s += stepsOnRing(color, dest.abs) * 0.5;
+      // prefer progress after flights
+      s += stepsOnRing(color, fin) * 0.5;
     }
     // leave base if others stuck
     var pos = state.pieces[color][idx];
