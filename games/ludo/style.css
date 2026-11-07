@@ -1,0 +1,98 @@
+:root {
+  --bg: #070b16;
+  --panel: rgba(14, 22, 40, 0.92);
+  --line: rgba(120, 180, 255, 0.35);
+  --text: #e8f0ff;
+  --muted: #8fa3c7;
+  --accent: #5eead4;
+  --red: #ef4444;
+  --yellow: #fbbf24;
+  --blue: #3b82f6;
+  --green: #22c55e;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%;
+  background: radial-gradient(1100px 700px at 30% -10%, #1a2040 0%, var(--bg) 55%);
+  color: var(--text);
+  font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+body { display: flex; flex-direction: column; min-height: 100%; }
+.app {
+  flex: 1; display: flex; flex-direction: column; min-height: 0;
+  padding: 6px 8px 10px; gap: 6px; max-width: 820px; width: 100%; margin: 0 auto;
+}
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+.brand h1 { margin: 0; font-size: 1.05rem; }
+.brand p { margin: 2px 0 0; font-size: 0.75rem; color: var(--muted); }
+.status {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 6px 10px; font-size: 0.85rem; text-align: center; max-width: 60%;
+}
+.board-wrap { flex: 1; min-height: 0; display: grid; place-items: center; }
+canvas#board {
+  width: min(100%, calc(100dvh - 200px), 560px);
+  height: auto; aspect-ratio: 1;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  background: #0b1224;
+  touch-action: none; max-height: 100%;
+}
+.hud {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; flex-shrink: 0;
+}
+.die {
+  width: 52px; height: 52px; border-radius: 12px;
+  background: linear-gradient(160deg, #f8fafc, #cbd5e1);
+  color: #0f172a; font-size: 1.6rem; font-weight: 800;
+  display: grid; place-items: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,.35);
+}
+.players { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill {
+  border-radius: 999px; padding: 5px 10px; font-size: 0.75rem;
+  border: 1px solid transparent; background: rgba(255,255,255,.06);
+}
+.pill.on { box-shadow: 0 0 0 1px var(--accent); }
+.pill.red { border-color: var(--red); }
+.pill.yellow { border-color: var(--yellow); }
+.pill.blue { border-color: var(--blue); }
+.pill.green { border-color: var(--green); }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; flex-shrink: 0; }
+.btn {
+  border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  border-radius: 999px; padding: 8px 14px; font-size: 0.85rem; cursor: pointer;
+}
+.btn.primary { background: linear-gradient(135deg, #8b5cf6, #06b6d4); border: none; color: #fff; font-weight: 700; }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.overlay {
+  position: fixed; inset: 0; background: rgba(3,6,14,.72);
+  display: grid; place-items: center; padding: 16px; z-index: 20;
+}
+.overlay[hidden] { display: none !important; }
+.modal {
+  width: min(440px, 100%);
+  background: linear-gradient(180deg, #121a2e, #0a1020);
+  border: 1px solid var(--line); border-radius: 16px; padding: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+.modal h2 { margin: 0 0 8px; font-size: 1.2rem; }
+.modal p { margin: 0 0 12px; color: var(--muted); font-size: 0.9rem; line-height: 1.45; }
+.choices { display: grid; gap: 8px; margin-bottom: 12px; }
+.choice {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: rgba(255,255,255,.04); border-radius: 10px; padding: 8px 10px;
+}
+.choice label { font-size: 0.82rem; color: var(--muted); min-width: 4em; }
+.seg { display: flex; gap: 6px; flex: 1; min-width: 120px; flex-wrap: wrap; }
+.seg button {
+  flex: 1; min-width: 64px; border: 1px solid var(--line); background: #0b1324; color: var(--text);
+  border-radius: 8px; padding: 7px 6px; cursor: pointer; font-size: 0.82rem;
+}
+.seg button.active { background: rgba(94,234,212,.18); border-color: var(--accent); color: var(--accent); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.rules {
+  font-size: 0.78rem; color: var(--muted); line-height: 1.5;
+  background: rgba(255,255,255,.03); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px;
+}

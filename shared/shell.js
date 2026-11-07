@@ -7,7 +7,11 @@
     { id: "gold-miner", name: "黄金矿工", blurb: "十五关钩矿" },
     { id: "snake", name: "贪吃蛇", blurb: "霓虹蛇越吃越长" },
     { id: "tetris", name: "俄罗斯方块", blurb: "消行冲关" },
-    { id: "2048", name: "2048", blurb: "滑动合并数字" }
+    { id: "2048", name: "2048", blurb: "滑动合并数字" },
+    { id: "gomoku", name: "五子棋", blurb: "15×15 五子连珠" },
+    { id: "xiangqi", name: "中国象棋", blurb: "楚河汉界" },
+    { id: "reversi", name: "黑白棋", blurb: "翻转夹击" },
+    { id: "ludo", name: "飞行棋", blurb: "掷骰起飞" }
   ];
 
   var gameId = document.body.getAttribute("data-game") || "";
@@ -35,7 +39,7 @@
   now.className = "now-playing";
   now.innerHTML = current
     ? "<strong>" + current.name + "</strong>"
-    : "<strong>五个小游戏</strong>";
+    : "<strong>小游戏合集</strong>";
   var menuBtn = document.createElement("button");
   menuBtn.type = "button";
   menuBtn.className = "menu-btn";
@@ -90,7 +94,12 @@
     if (id === "gold-miner") return "42";
     if (id === "snake") return "155";
     if (id === "tetris") return "265";
-    return "330";
+    if (id === "2048") return "330";
+    if (id === "gomoku") return "25";
+    if (id === "xiangqi") return "12";
+    if (id === "reversi") return "168";
+    if (id === "ludo") return "280";
+    return "200";
   }
 
   function post(action) {
@@ -193,7 +202,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register(BASE + "/sw.js?v=1", { scope: BASE + "/" }).then(function () {
+    navigator.serviceWorker.register(BASE + "/sw.js?v=2", { scope: BASE + "/" }).then(function () {
       return navigator.serviceWorker.ready;
     }).then(function () {
       // The first document loads before the worker controls it, so its files

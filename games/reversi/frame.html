@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#070b16">
+<title>黑白棋</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="app">
+  <div class="topbar">
+    <div class="brand">
+      <h1>黑白棋</h1>
+      <p>8×8 · 翻转夹击</p>
+    </div>
+    <div class="scores">
+      <div class="score" id="scoreB"><span>黑</span><strong>2</strong></div>
+      <div class="score" id="scoreW"><span>白</span><strong>2</strong></div>
+    </div>
+  </div>
+  <div class="status" id="status">选择模式开始</div>
+  <div class="board-wrap">
+    <div class="board" id="board" aria-label="黑白棋棋盘"></div>
+  </div>
+  <div class="toolbar">
+    <button type="button" class="btn" id="btnResign">认输</button>
+    <button type="button" class="btn primary" id="btnRestart">重开</button>
+  </div>
+</main>
+
+<div class="overlay" id="setup">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h2>开始黑白棋</h2>
+    <p>本地双人热座，或对战电脑（三档难度）。黑棋先手。</p>
+    <div class="choices">
+      <div class="choice">
+        <label>模式</label>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="local" class="active">本地双人</button>
+          <button type="button" data-mode="ai">对战电脑</button>
+        </div>
+      </div>
+      <div class="choice" id="diffRow" hidden>
+        <label>难度</label>
+        <div class="seg" id="diffSeg">
+          <button type="button" data-diff="easy" class="active">简单</button>
+          <button type="button" data-diff="normal">普通</button>
+          <button type="button" data-diff="hard">困难</button>
+        </div>
+      </div>
+      <div class="choice" id="sideRow" hidden>
+        <label>执子</label>
+        <div class="seg" id="sideSeg">
+          <button type="button" data-side="human" class="active">我执黑</button>
+          <button type="button" data-side="ai">电脑执黑</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn primary" id="btnStart">开始对局</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="end" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <h2 id="endTitle">对局结束</h2>
+    <p id="endMsg"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="btnSetup">换模式</button>
+      <button type="button" class="btn primary" id="btnAgain">再来一局</button>
+    </div>
+  </div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>

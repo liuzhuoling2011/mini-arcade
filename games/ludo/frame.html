@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#070b16">
+<title>飞行棋</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="app">
+  <div class="topbar">
+    <div class="brand">
+      <h1>飞行棋</h1>
+      <p>掷 6 起飞 · 再掷一次</p>
+    </div>
+    <div class="status" id="status">选择模式开始</div>
+  </div>
+  <div class="board-wrap">
+    <canvas id="board" width="600" height="600" aria-label="飞行棋棋盘"></canvas>
+  </div>
+  <div class="hud">
+    <div class="die" id="die">?</div>
+    <button type="button" class="btn primary" id="btnRoll">掷骰子</button>
+    <div class="players" id="players"></div>
+  </div>
+  <div class="toolbar">
+    <button type="button" class="btn" id="btnResign">认输/退出</button>
+    <button type="button" class="btn" id="btnRestart">重开</button>
+  </div>
+</main>
+
+<div class="overlay" id="setup">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h2>开始飞行棋</h2>
+    <div class="rules">
+      规则：掷到 <strong>6</strong> 才能从基地起飞；掷到 6 可再掷一次。棋子沿外圈前进，进入本色航道后需点数刚好到终点。落到对方棋子上可撞回基地（安全格除外）。同一颜色可叠子。有人 4 枚全部到达即胜。
+    </div>
+    <div class="choices">
+      <div class="choice">
+        <label>模式</label>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="local" class="active">本地多人</button>
+          <button type="button" data-mode="ai">对战电脑</button>
+        </div>
+      </div>
+      <div class="choice" id="countRow">
+        <label>人数</label>
+        <div class="seg" id="countSeg">
+          <button type="button" data-count="2" class="active">2人</button>
+          <button type="button" data-count="3">3人</button>
+          <button type="button" data-count="4">4人</button>
+        </div>
+      </div>
+      <div class="choice" id="diffRow" hidden>
+        <label>难度</label>
+        <div class="seg" id="diffSeg">
+          <button type="button" data-diff="easy" class="active">简单</button>
+          <button type="button" data-diff="normal">普通</button>
+          <button type="button" data-diff="hard">困难</button>
+        </div>
+      </div>
+      <div class="choice" id="colorRow" hidden>
+        <label>你的颜色</label>
+        <div class="seg" id="colorSeg">
+          <button type="button" data-color="0" class="active">红</button>
+          <button type="button" data-color="2">蓝</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn primary" id="btnStart">开始对局</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="end" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <h2 id="endTitle">对局结束</h2>
+    <p id="endMsg"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="btnSetup">换模式</button>
+      <button type="button" class="btn primary" id="btnAgain">再来一局</button>
+    </div>
+  </div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
