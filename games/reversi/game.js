@@ -43,6 +43,7 @@
   function build() {
     boardEl.innerHTML = "";
     cells = [];
+    diskEls = [];
     for (var i = 0; i < 64; i++) {
       var cell = document.createElement("div");
       cell.className = "cell";
@@ -94,11 +95,14 @@
     return n;
   }
 
-  function makeDiskEl(color, extraClass) {
+  var diskEls = []; // persistent .disk nodes per cell
+
+  function ensureDisk(p) {
+    if (diskEls[p]) return diskEls[p];
     var wrap = document.createElement("div");
     wrap.className = "disk-wrap";
     var d = document.createElement("div");
-    d.className = "disk " + (color === BLACK ? "b" : "w") + (extraClass ? " " + extraClass : "");
+    d.className = "disk b";
     var front = document.createElement("div");
     front.className = "face front";
     var back = document.createElement("div");
@@ -106,31 +110,39 @@
     d.appendChild(front);
     d.appendChild(back);
     wrap.appendChild(d);
-    return wrap;
+    cells[p].appendChild(wrap);
+    diskEls[p] = d;
+    return d;
   }
 
-  function render(opts) {
-    opts = opts || {};
-    var placePos = opts.placePos;
-    var flipSet = opts.flipSet || {};
+  function syncLegalsAndScores() {
     var legals = over || animating ? [] : legalMoves(turn);
     var legalSet = {};
     for (var i = 0; i < legals.length; i++) legalSet[legals[i]] = 1;
     for (var p = 0; p < 64; p++) {
-      var cell = cells[p];
-      cell.className = "cell" + (legalSet[p] ? " legal" : "");
-      cell.innerHTML = "";
-      if (board[p]) {
-        var extra = "";
-        if (placePos === p) extra = "placed";
-        else if (flipSet[p]) extra = board[p] === WHITE ? "flip-to-w" : "flip-to-b";
-        cell.appendChild(makeDiskEl(board[p], extra));
-      }
+      cells[p].classList.toggle("legal", !!legalSet[p]);
     }
     scoreB.querySelector("strong").textContent = count(BLACK);
     scoreW.querySelector("strong").textContent = count(WHITE);
     scoreB.classList.toggle("active", !over && turn === BLACK);
     scoreW.classList.toggle("active", !over && turn === WHITE);
+  }
+
+  function render() {
+    for (var p = 0; p < 64; p++) {
+      if (!board[p]) {
+        if (diskEls[p]) {
+          diskEls[p].parentNode.style.display = "none";
+        }
+        continue;
+      }
+      var d = ensureDisk(p);
+      d.parentNode.style.display = "";
+      d.classList.remove("flip-to-w", "flip-to-b", "placed");
+      d.classList.toggle("b", board[p] === BLACK);
+      d.classList.toggle("w", board[p] === WHITE);
+    }
+    syncLegalsAndScores();
   }
 
   function pulseStatus() {
@@ -200,14 +212,49 @@
     var color = turn;
     var flips = flipsAt(pos, color);
     if (!flips.length) return;
-    var flipSet = {};
-    for (var i = 0; i < flips.length; i++) flipSet[flips[i]] = 1;
+
+    // place new disk immediately (no full re-render)
     board[pos] = color;
-    for (var j = 0; j < flips.length; j++) board[flips[j]] = color;
+    var placed = ensureDisk(pos);
+    placed.parentNode.style.display = "";
+    placed.classList.remove("flip-to-w", "flip-to-b", "w", "b", "placed");
+    // force reflow once for place anim restart
+    void placed.offsetWidth;
+    placed.classList.add(color === BLACK ? "b" : "w", "placed");
+
     animating = true;
-    render({ placePos: pos, flipSet: flipSet });
-    var wait = flips.length ? 520 : 380;
+    syncLegalsAndScores();
+
+    // stagger flips on existing disks — mutate classes only
+    var delayStep = flips.length > 8 ? 18 : 28;
+    flips.forEach(function (fp, i) {
+      var from = board[fp]; // still opponent until we flip data
+      // update model now so scores stay correct after anim; visual flips async
+      board[fp] = color;
+      setTimeout(function () {
+        var d = ensureDisk(fp);
+        d.parentNode.style.display = "";
+        d.classList.remove("flip-to-w", "flip-to-b", "placed", "b", "w");
+        // start from previous face
+        d.classList.add(from === BLACK ? "b" : "w");
+        void d.offsetWidth;
+        d.classList.remove("b", "w");
+        d.classList.add(color === BLACK ? "flip-to-b" : "flip-to-w");
+        d.classList.add(color === BLACK ? "b" : "w");
+      }, 40 + i * delayStep);
+    });
+
+    var wait = 320 + flips.length * delayStep + 200;
     setTimeout(function () {
+      // settle classes without rebuilding DOM
+      flips.forEach(function (fp) {
+        var d = diskEls[fp];
+        if (!d) return;
+        d.classList.remove("flip-to-w", "flip-to-b", "placed");
+        d.classList.toggle("b", board[fp] === BLACK);
+        d.classList.toggle("w", board[fp] === WHITE);
+      });
+      placed.classList.remove("placed");
       animating = false;
       afterMove();
     }, wait);

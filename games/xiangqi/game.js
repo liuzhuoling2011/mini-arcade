@@ -37,10 +37,42 @@
 
   function build() {
     boardEl.innerHTML = "";
+    // SVG line art: 9 files × 10 ranks, river gap (no verticals across river), palace diagonals
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "board-lines");
+    svg.setAttribute("viewBox", "0 0 8 9");
+    svg.setAttribute("preserveAspectRatio", "none");
+    var ns = "http://www.w3.org/2000/svg";
+    function line(x1, y1, x2, y2, w) {
+      var el = document.createElementNS(ns, "line");
+      el.setAttribute("x1", x1); el.setAttribute("y1", y1);
+      el.setAttribute("x2", x2); el.setAttribute("y2", y2);
+      el.setAttribute("stroke", "rgba(72,32,12,0.72)");
+      el.setAttribute("stroke-width", w || 0.035);
+      el.setAttribute("stroke-linecap", "square");
+      svg.appendChild(el);
+    }
+    // horizontal lines all 10 ranks (y = 0..9)
+    for (var r = 0; r <= 9; r++) line(0, r, 8, r, r === 0 || r === 9 ? 0.05 : 0.032);
+    // verticals: top half ranks 0-4, bottom half ranks 5-9 (display: rank9 at top → y=0)
+    // Our grid displays rank 9 at top (y=0) to rank 0 at bottom (y=9)
+    // River sits between display rows of rank5 (y=4) and rank4 (y=5) → between y=4.5 area
+    // Vertical segments: y 0→4 (black side) and y 5→9 (red side)
+    for (var f = 0; f <= 8; f++) {
+      line(f, 0, f, 4, f === 0 || f === 8 ? 0.05 : 0.032);
+      line(f, 5, f, 9, f === 0 || f === 8 ? 0.05 : 0.032);
+    }
+    // palace diagonals: black palace files 3-5, ranks 7-9 → display y 0-2
+    line(3, 0, 5, 2, 0.032); line(5, 0, 3, 2, 0.032);
+    // red palace files 3-5, ranks 0-2 → display y 7-9
+    line(3, 7, 5, 9, 0.032); line(5, 7, 3, 9, 0.032);
+    boardEl.appendChild(svg);
+
     var river = document.createElement("div");
-    river.className = "river-label";
-    river.innerHTML = "<span>楚 河</span><span>汉 界</span>";
+    river.className = "river";
+    river.innerHTML = '<span class="r-txt left">楚河</span><span class="r-txt right">汉界</span>';
     boardEl.appendChild(river);
+
     var grid = document.createElement("div");
     grid.className = "grid";
     cells = [];
@@ -56,6 +88,24 @@
       }
     }
     boardEl.appendChild(grid);
+  }
+
+  var checkBanner = document.getElementById("checkBanner");
+  var checkTimer = null;
+
+  function showCheckFx(on) {
+    boardEl.classList.toggle("in-check", !!on);
+    statusEl.classList.toggle("check-on", !!on);
+    if (!on) {
+      checkBanner.hidden = true;
+      return;
+    }
+    checkBanner.hidden = false;
+    clearTimeout(checkTimer);
+    checkTimer = setTimeout(function () {
+      // keep board glow while still in check; hide big banner after a beat
+      checkBanner.hidden = true;
+    }, 1100);
   }
 
   function pieceAt(rank, file) {
@@ -110,18 +160,21 @@
 
   function updateStatus(extra) {
     if (over) return;
+    var checked = game.in_check();
     var t = nameSide(game.turn()) + "行棋";
     if (settings.mode === "ai") {
       t += game.turn() === settings.humanSide ? "（你）" : "（电脑）";
     }
-    if (game.in_check()) t += " · 被将军！";
+    if (checked) t = "⚠ 将军！ · " + t;
     if (extra) t += " · " + extra;
     statusEl.textContent = t;
     pulseStatus();
+    showCheckFx(checked);
   }
 
   function finish(title, msg) {
     over = true; selected = null; dests = [];
+    showCheckFx(false);
     render();
     statusEl.textContent = title;
     document.getElementById("endTitle").textContent = title;
@@ -311,6 +364,7 @@
   function reset() {
     game = new Xiangqi();
     selected = null; dests = []; lastPlaced = null; over = false;
+    showCheckFx(false);
     render(); updateStatus();
   }
 

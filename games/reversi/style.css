@@ -67,21 +67,24 @@ body {
 }
 .disk-wrap {
   width: 82%; height: 82%;
-  perspective: 400px;
+  perspective: 600px;
   transform-style: preserve-3d;
   pointer-events: none;
+  will-change: transform;
 }
 .disk {
   width: 100%; height: 100%;
   border-radius: 50%;
   position: relative;
   transform-style: preserve-3d;
-  transition: transform .45s var(--bc-ease);
+  will-change: transform;
+  transform: translateZ(0) rotateY(0deg);
 }
 .disk .face {
   position: absolute; inset: 0; border-radius: 50%;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
   box-shadow:
     0 5px 8px rgba(0,0,0,.4),
     inset 0 -4px 8px rgba(0,0,0,.35),
@@ -96,31 +99,29 @@ body {
 }
 .disk.b { transform: rotateY(0deg); }
 .disk.w { transform: rotateY(180deg); }
-.disk.flip-to-w { animation: flip-w .5s var(--bc-ease) forwards; }
-.disk.flip-to-b { animation: flip-b .5s var(--bc-ease) forwards; }
+.disk.flip-to-w {
+  animation: flip-w .36s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+}
+.disk.flip-to-b {
+  animation: flip-b .36s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+}
 @keyframes flip-w {
-  from { transform: rotateY(0deg) scale(1); }
-  45% { transform: rotateY(90deg) scale(1.08) translateZ(12px); }
-  to { transform: rotateY(180deg) scale(1); }
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(180deg); }
 }
 @keyframes flip-b {
-  from { transform: rotateY(180deg) scale(1); }
-  45% { transform: rotateY(90deg) scale(1.08) translateZ(12px); }
-  to { transform: rotateY(0deg) scale(1); }
+  from { transform: rotateY(180deg); }
+  to { transform: rotateY(360deg); }
 }
-.disk.placed {
-  animation: disk-drop .38s var(--bc-ease);
+.disk.placed.b { animation: disk-drop-b .3s cubic-bezier(0.22, 1, 0.36, 1); }
+.disk.placed.w { animation: disk-drop-w .3s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes disk-drop-b {
+  0% { transform: rotateY(0deg) translateY(-14px) scale(0.55); opacity: 0; }
+  100% { transform: rotateY(0deg) translateY(0) scale(1); opacity: 1; }
 }
-@keyframes disk-drop {
-  0% { transform: translateY(-18px) scale(0.4); opacity: 0; }
-  70% { transform: translateY(2px) scale(1.05); opacity: 1; }
-  100% { transform: translateY(0) scale(1); }
-}
-.disk.placed.w { animation: disk-drop-w .38s var(--bc-ease); }
 @keyframes disk-drop-w {
-  0% { transform: rotateY(180deg) translateY(-18px) scale(0.4); opacity: 0; }
-  70% { transform: rotateY(180deg) translateY(2px) scale(1.05); opacity: 1; }
-  100% { transform: rotateY(180deg) translateY(0) scale(1); }
+  0% { transform: rotateY(180deg) translateY(-14px) scale(0.55); opacity: 0; }
+  100% { transform: rotateY(180deg) translateY(0) scale(1); opacity: 1; }
 }
 .btn.primary {
   background: linear-gradient(135deg, #14b8a6, #0ea5e9);

@@ -469,11 +469,11 @@
 
   function baseXY(color, idx) {
     var corners = [
-      { x: 95, y: 95 }, { x: 445, y: 95 }, { x: 445, y: 445 }, { x: 95, y: 445 }
+      { x: 76, y: 94 }, { x: 424, y: 94 }, { x: 424, y: 442 }, { x: 76, y: 442 }
     ];
     var o = corners[color];
-    var ox = (idx % 2) * 48;
-    var oy = ((idx / 2) | 0) * 48;
+    var ox = (idx % 2) * 55;
+    var oy = ((idx / 2) | 0) * 55;
     return { x: o.x + ox, y: o.y + oy };
   }
 
@@ -492,111 +492,114 @@
     var S = 600;
     ctx.clearRect(0, 0, S, S);
 
-    // felt/wood board background with vignette
-    var g = ctx.createRadialGradient(300, 260, 40, 300, 300, 420);
-    g.addColorStop(0, "#1e2a44");
-    g.addColorStop(0.55, "#121a2e");
-    g.addColorStop(1, "#070b14");
-    ctx.fillStyle = g;
-    roundRectPath(18, 18, S - 36, S - 36, 22);
+    // felt table (腾讯棋牌绿呢气质)
+    var felt = ctx.createRadialGradient(300, 280, 40, 300, 300, 380);
+    felt.addColorStop(0, "#1a8f68");
+    felt.addColorStop(0.55, "#0f6a4c");
+    felt.addColorStop(1, "#074433");
+    roundRectPath(0, 0, S, S, 22);
+    ctx.fillStyle = felt;
     ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
-    ctx.lineWidth = 2;
+    // wood rim
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = "#8b5a2b";
+    roundRectPath(7, 7, S - 14, S - 14, 18);
     ctx.stroke();
-    // inner bevel
-    ctx.strokeStyle = "rgba(0,0,0,0.35)";
-    ctx.lineWidth = 6;
-    roundRectPath(24, 24, S - 48, S - 48, 18);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(255, 214, 102, 0.35)";
+    roundRectPath(16, 16, S - 32, S - 32, 14);
     ctx.stroke();
 
-    // bases with 3D bevel
-    COLORS.forEach(function (col, ci) {
-      if (activeColors().indexOf(ci) < 0) return;
-      var b = [
-        { x: 40, y: 40 }, { x: 390, y: 40 }, { x: 390, y: 390 }, { x: 40, y: 390 }
-      ][ci];
-      drawBasePad(b.x, b.y, 170, 170, col);
-      ctx.fillStyle = col.deep;
-      ctx.font = "bold 15px sans-serif";
-      ctx.fillText(col.name + "方机场", b.x + 14, b.y + 26);
+    // soft vignette
+    var vig = ctx.createRadialGradient(300, 300, 160, 300, 300, 420);
+    vig.addColorStop(0, "rgba(0,0,0,0)");
+    vig.addColorStop(1, "rgba(0,0,0,0.28)");
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, S, S);
+
+    // airports
+    var pads = [
+      { x: 36, y: 36, c: 0 }, { x: 384, y: 36, c: 1 },
+      { x: 384, y: 384, c: 2 }, { x: 36, y: 384, c: 3 }
+    ];
+    pads.forEach(function (pad) {
+      if (activeColors().indexOf(pad.c) < 0) {
+        // muted empty pad
+        drawAirport(pad.x, pad.y, 180, COLORS[pad.c], true);
+      } else {
+        drawAirport(pad.x, pad.y, 180, COLORS[pad.c], false);
+      }
     });
 
-    // glowing shortcut lanes
+    // shortcut glow lanes
     SHORTCUTS.forEach(function (sc, ci) {
       if (activeColors().indexOf(ci) < 0) return;
       var a = cellXY(sc.trigger), b = cellXY(sc.dest);
-      var mx = (a.x + b.x) / 2 * 0.32 + 300 * 0.68;
-      var my = (a.y + b.y) / 2 * 0.32 + 300 * 0.68;
+      var mx = (a.x + b.x) * 0.25 + 150;
+      var my = (a.y + b.y) * 0.25 + 150;
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.quadraticCurveTo(mx, my, b.x, b.y);
-      ctx.strokeStyle = colAlpha(COLORS[ci].fill, 0.22);
-      ctx.lineWidth = 10;
+      ctx.strokeStyle = colAlpha(COLORS[ci].fill, 0.18);
+      ctx.lineWidth = 14;
       ctx.stroke();
-      ctx.strokeStyle = COLORS[ci].fill;
-      ctx.globalAlpha = 0.55;
+      ctx.strokeStyle = COLORS[ci].light;
+      ctx.globalAlpha = 0.75;
       ctx.lineWidth = 3;
-      ctx.setLineDash([10, 8]);
+      ctx.setLineDash([7, 7]);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
-      var ang = Math.atan2(b.y - my, b.x - mx);
-      ctx.beginPath();
-      ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x - 14 * Math.cos(ang - 0.45), b.y - 14 * Math.sin(ang - 0.45));
-      ctx.lineTo(b.x - 14 * Math.cos(ang + 0.45), b.y - 14 * Math.sin(ang + 0.45));
-      ctx.closePath();
+      // plane icon mid
       ctx.fillStyle = COLORS[ci].fill;
-      ctx.globalAlpha = 0.7;
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      ctx.font = "bold 14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("✈", mx, my + 4);
+      ctx.textAlign = "left";
       ctx.restore();
     });
 
-    // ring cells
+    // ring tiles as rounded squares
     for (var i = 0; i < TRACK; i++) {
-      var p = cellXY(i);
+      var pt = cellXY(i);
       var isStart = START.indexOf(i) >= 0;
       var startColor = START.indexOf(i);
       var owner = TILE_OWNER[i];
       var isTrigger = SHORTCUTS.some(function (sc) { return sc.trigger === i; });
-      var r = isStart || isTrigger ? 17 : 13;
-      drawCell3d(p.x, p.y, r, isStart && activeColors().indexOf(startColor) >= 0 ? COLORS[startColor]
-        : (owner != null && activeColors().indexOf(owner) >= 0 ? COLORS[owner] : null), isTrigger);
-      if (isTrigger) {
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 12px sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText("✈", p.x, p.y + 4);
-        ctx.textAlign = "left";
-      }
+      var col = null;
+      if (isStart && activeColors().indexOf(startColor) >= 0) col = COLORS[startColor];
+      else if (owner != null && activeColors().indexOf(owner) >= 0) col = COLORS[owner];
+      drawTile(pt.x, pt.y, isStart || isTrigger ? 18 : 15, col, isTrigger, isStart);
     }
 
-    // home stretches
+    // home runways
     activeColors().forEach(function (c) {
       for (var h = 0; h < HOME_LEN; h++) {
         var hp = homeXY(c, h);
-        drawCell3d(hp.x, hp.y, 12, COLORS[c], false);
+        drawTile(hp.x, hp.y, 13, COLORS[c], false, false);
       }
     });
 
-    // center podium
+    // center finish badge
     ctx.save();
     ctx.beginPath();
-    ctx.arc(300, 300, 42, 0, Math.PI * 2);
-    var cg = ctx.createRadialGradient(290, 285, 6, 300, 300, 42);
-    cg.addColorStop(0, "#334155");
-    cg.addColorStop(1, "#0f172a");
+    ctx.arc(300, 300, 48, 0, Math.PI * 2);
+    var cg = ctx.createRadialGradient(285, 280, 8, 300, 300, 48);
+    cg.addColorStop(0, "#ffe9a8");
+    cg.addColorStop(0.45, "#f5c542");
+    cg.addColorStop(1, "#b45309");
     ctx.fillStyle = cg;
     ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "rgba(226,232,240,0.45)";
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#fff3c4";
     ctx.stroke();
-    ctx.fillStyle = "#e2e8f0";
-    ctx.font = "bold 15px sans-serif";
+    ctx.fillStyle = "#7c2d12";
+    ctx.font = "bold 16px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("终点", 300, 306);
+    ctx.fillText("终点", 300, 298);
+    ctx.font = "12px sans-serif";
+    ctx.fillText("FINISH", 300, 316);
     ctx.textAlign = "left";
     ctx.restore();
 
@@ -612,14 +615,12 @@
         var key = c + "-" + idx;
         var xy = visuals[key] || pieceScreenPos(c, idx);
         if (!anim || anim.key !== key) visuals[key] = { x: xy.x, y: xy.y };
-        var highlight = state.phase === "choose" && state.turn === c && movableSet[idx];
-        drawPlane(xy.x, xy.y, COLORS[c], idx + 1, highlight);
+        drawPlane(xy.x, xy.y, COLORS[c], idx + 1, state.phase === "choose" && state.turn === c && movableSet[idx]);
       });
     });
   }
 
   function colAlpha(hex, a) {
-    // simple #rrggbb
     var r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
     return "rgba(" + r + "," + g + "," + b + "," + a + ")";
   }
@@ -634,119 +635,168 @@
     ctx.closePath();
   }
 
-  function drawBasePad(x, y, w, h, col) {
-    roundRectPath(x, y, w, h, 18);
-    var g = ctx.createLinearGradient(x, y, x + w, y + h);
-    g.addColorStop(0, col.soft);
-    g.addColorStop(1, col.light);
+  function drawAirport(x, y, size, col, muted) {
+    roundRectPath(x, y, size, size, 22);
+    var g = ctx.createLinearGradient(x, y, x + size, y + size);
+    if (muted) {
+      g.addColorStop(0, "rgba(255,255,255,0.08)");
+      g.addColorStop(1, "rgba(0,0,0,0.12)");
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      return;
+    }
+    g.addColorStop(0, col.light);
+    g.addColorStop(0.5, col.fill);
+    g.addColorStop(1, col.deep);
     ctx.fillStyle = g;
     ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = col.fill;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
     ctx.stroke();
-    // inset highlight
-    ctx.strokeStyle = "rgba(255,255,255,0.45)";
-    ctx.lineWidth = 1.5;
-    roundRectPath(x + 4, y + 4, w - 8, h - 8, 14);
+    // inner hangar
+    roundRectPath(x + 18, y + 36, size - 36, size - 58, 14);
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 2;
     ctx.stroke();
-  }
-
-  function drawCell3d(x, y, r, col, trigger) {
-    ctx.beginPath();
-    ctx.arc(x + 1.5, y + 2.5, r, 0, Math.PI * 2);
+    // title plate
+    roundRectPath(x + 20, y + 12, size - 40, 26, 10);
     ctx.fillStyle = "rgba(0,0,0,0.28)";
     ctx.fill();
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(col.name + "色机场", x + size / 2, y + 30);
+    ctx.textAlign = "left";
+    // four docks
+    for (var i = 0; i < 4; i++) {
+      var dx = x + 40 + (i % 2) * 55;
+      var dy = y + 58 + ((i / 2) | 0) * 55;
+      ctx.beginPath();
+      ctx.arc(dx, dy, 16, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.22)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.45)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+
+  function drawTile(x, y, half, col, trigger, start) {
+    var s = half;
+    // shadow
+    roundRectPath(x - s + 2, y - s + 3, s * 2, s * 2, 6);
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fill();
+    roundRectPath(x - s, y - s, s * 2, s * 2, 6);
     if (col) {
-      var g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, 2, x, y, r);
+      var g = ctx.createLinearGradient(x - s, y - s, x + s, y + s);
       g.addColorStop(0, "#fff");
-      g.addColorStop(0.25, col.soft);
+      g.addColorStop(0.2, col.soft);
       g.addColorStop(1, col.fill);
       ctx.fillStyle = g;
-      ctx.strokeStyle = col.deep;
     } else {
-      var g2 = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, 2, x, y, r);
-      g2.addColorStop(0, "#475569");
-      g2.addColorStop(1, "#1e293b");
+      var g2 = ctx.createLinearGradient(x - s, y - s, x + s, y + s);
+      g2.addColorStop(0, "#f8fafc");
+      g2.addColorStop(1, "#cbd5e1");
       ctx.fillStyle = g2;
-      ctx.strokeStyle = "#64748b";
     }
     ctx.fill();
-    ctx.lineWidth = trigger ? 3 : 1.8;
+    ctx.lineWidth = trigger || start ? 2.5 : 1.5;
+    ctx.strokeStyle = col ? col.deep : "#64748b";
     ctx.stroke();
+    if (trigger) {
+      ctx.fillStyle = col ? col.deep : "#334155";
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("✈", x, y + 4);
+      ctx.textAlign = "left";
+    } else if (start) {
+      ctx.fillStyle = col.deep;
+      ctx.font = "bold 9px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("起", x, y + 3);
+      ctx.textAlign = "left";
+    }
   }
 
   function drawPlane(x, y, col, num, highlight) {
     ctx.save();
     ctx.translate(x, y);
-    // shadow
+    // soft shadow
     ctx.beginPath();
-    ctx.ellipse(2, 8, 14, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(1, 10, 15, 7, 0, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fill();
-    // body
+    // glossy body
     ctx.beginPath();
-    ctx.moveTo(0, -16);
-    ctx.quadraticCurveTo(10, -2, 7, 12);
-    ctx.lineTo(0, 8);
-    ctx.lineTo(-7, 12);
-    ctx.quadraticCurveTo(-10, -2, 0, -16);
+    ctx.moveTo(0, -17);
+    ctx.bezierCurveTo(11, -6, 10, 8, 5, 14);
+    ctx.lineTo(0, 10);
+    ctx.lineTo(-5, 14);
+    ctx.bezierCurveTo(-10, 8, -11, -6, 0, -17);
     ctx.closePath();
-    var g = ctx.createLinearGradient(-10, -16, 12, 14);
-    g.addColorStop(0, col.light);
-    g.addColorStop(0.45, col.fill);
+    var g = ctx.createLinearGradient(-12, -17, 12, 16);
+    g.addColorStop(0, "#fff");
+    g.addColorStop(0.25, col.light);
+    g.addColorStop(0.65, col.fill);
     g.addColorStop(1, col.deep);
     ctx.fillStyle = g;
     ctx.fill();
-    ctx.lineWidth = highlight ? 3 : 1.5;
-    ctx.strokeStyle = highlight ? "#fff" : "rgba(255,255,255,0.55)";
+    ctx.lineWidth = highlight ? 3 : 1.6;
+    ctx.strokeStyle = highlight ? "#fffbeb" : "rgba(255,255,255,0.7)";
     ctx.stroke();
     // wings
     ctx.beginPath();
-    ctx.moveTo(-16, 0);
-    ctx.lineTo(16, 0);
-    ctx.lineTo(10, 5);
-    ctx.lineTo(-10, 5);
+    ctx.moveTo(-17, -1);
+    ctx.lineTo(17, -1);
+    ctx.lineTo(11, 6);
+    ctx.lineTo(-11, 6);
     ctx.closePath();
     ctx.fillStyle = col.deep;
-    ctx.globalAlpha = 0.85;
+    ctx.globalAlpha = 0.9;
     ctx.fill();
     ctx.globalAlpha = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
     // cockpit
     ctx.beginPath();
-    ctx.ellipse(0, -6, 4, 5, 0, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.ellipse(0, -7, 4.5, 5.5, 0, 0, Math.PI * 2);
+    var cg = ctx.createRadialGradient(-1, -9, 1, 0, -7, 6);
+    cg.addColorStop(0, "#e0f2fe");
+    cg.addColorStop(1, "#0284c7");
+    ctx.fillStyle = cg;
     ctx.fill();
-    // number
+    // badge
+    ctx.beginPath();
+    ctx.arc(0, 3, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fill();
     ctx.fillStyle = "#fff";
     ctx.font = "bold 11px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(String(num), 0, 4);
+    ctx.fillText(String(num), 0, 7);
     ctx.textAlign = "left";
     if (highlight) {
       ctx.beginPath();
-      ctx.arc(0, 0, 20, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(255,255,255,0.55)";
-      ctx.lineWidth = 2;
+      ctx.arc(0, 0, 22, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255, 230, 140, 0.85)";
+      ctx.lineWidth = 2.5;
       ctx.stroke();
     }
     ctx.restore();
   }
 
+  // keep legacy name used elsewhere
   function roundRect(x, y, w, h, r, fill, stroke) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-    ctx.fillStyle = fill;
-    ctx.fill();
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    roundRectPath(x, y, w, h, r);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.strokeStyle = stroke; ctx.lineWidth = 3; ctx.stroke();
   }
 
   function hitTest(mx, my) {
