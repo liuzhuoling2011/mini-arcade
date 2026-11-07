@@ -18,6 +18,7 @@
   var board = [];
   var turn = BLACK;
   var lastMove = null;
+  var justPlaced = false;
   var over = false;
   var suspended = false;
   var aiTimer = null;
@@ -54,6 +55,7 @@
     board = new Array(N * N).fill(EMPTY);
     turn = BLACK;
     lastMove = null;
+    justPlaced = false;
     over = false;
     render();
     updateStatus();
@@ -72,13 +74,22 @@
       if (v) {
         var s = document.createElement("span");
         s.className = "stone " + (v === BLACK ? "b" : "w");
-        if (lastMove && lastMove === i) s.classList.add("last");
+        if (lastMove && lastMove === i) {
+          s.classList.add("last");
+          if (justPlaced) s.classList.add("pop");
+        }
         cell.appendChild(s);
       }
     }
   }
 
   function sideName(s) { return s === BLACK ? "黑棋" : "白棋"; }
+
+  function pulseStatus() {
+    statusEl.classList.remove("pulse");
+    void statusEl.offsetWidth;
+    statusEl.classList.add("pulse");
+  }
 
   function updateStatus(extra) {
     if (over) return;
@@ -88,6 +99,7 @@
     }
     if (extra) t += " · " + extra;
     statusEl.textContent = t;
+    pulseStatus();
   }
 
   function countDir(r, c, dr, dc, color) {
@@ -330,7 +342,9 @@
     if (board[p]) return false;
     board[p] = turn;
     lastMove = p;
+    justPlaced = true;
     render();
+    justPlaced = false;
     if (isWin(r, c, turn)) {
       finish(sideName(turn) + "获胜", sideName(turn) + "连成五子！");
       return true;

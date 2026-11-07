@@ -32,6 +32,8 @@
   var suspended = false;
   var aiTimer = null;
   var settings = { mode: "local", diff: "easy", humanSide: BLACK };
+  var prevBoard = null;
+  var animating = false;
 
   function idx(r, c) { return r * N + c; }
   function inb(r, c) { return r >= 0 && r < N && c >= 0 && c < N; }
@@ -55,7 +57,7 @@
     board = new Array(64).fill(EMPTY);
     board[idx(3,3)] = WHITE; board[idx(3,4)] = BLACK;
     board[idx(4,3)] = BLACK; board[idx(4,4)] = WHITE;
-    turn = BLACK; over = false;
+    turn = BLACK; over = false; animating = false;
     render(); updateStatus();
   }
 
@@ -92,8 +94,26 @@
     return n;
   }
 
-  function render() {
-    var legals = over ? [] : legalMoves(turn);
+  function makeDiskEl(color, extraClass) {
+    var wrap = document.createElement("div");
+    wrap.className = "disk-wrap";
+    var d = document.createElement("div");
+    d.className = "disk " + (color === BLACK ? "b" : "w") + (extraClass ? " " + extraClass : "");
+    var front = document.createElement("div");
+    front.className = "face front";
+    var back = document.createElement("div");
+    back.className = "face back";
+    d.appendChild(front);
+    d.appendChild(back);
+    wrap.appendChild(d);
+    return wrap;
+  }
+
+  function render(opts) {
+    opts = opts || {};
+    var placePos = opts.placePos;
+    var flipSet = opts.flipSet || {};
+    var legals = over || animating ? [] : legalMoves(turn);
     var legalSet = {};
     for (var i = 0; i < legals.length; i++) legalSet[legals[i]] = 1;
     for (var p = 0; p < 64; p++) {
@@ -101,15 +121,22 @@
       cell.className = "cell" + (legalSet[p] ? " legal" : "");
       cell.innerHTML = "";
       if (board[p]) {
-        var d = document.createElement("span");
-        d.className = "disk " + (board[p] === BLACK ? "b" : "w");
-        cell.appendChild(d);
+        var extra = "";
+        if (placePos === p) extra = "placed";
+        else if (flipSet[p]) extra = board[p] === WHITE ? "flip-to-w" : "flip-to-b";
+        cell.appendChild(makeDiskEl(board[p], extra));
       }
     }
     scoreB.querySelector("strong").textContent = count(BLACK);
     scoreW.querySelector("strong").textContent = count(WHITE);
     scoreB.classList.toggle("active", !over && turn === BLACK);
     scoreW.classList.toggle("active", !over && turn === WHITE);
+  }
+
+  function pulseStatus() {
+    statusEl.classList.remove("pulse");
+    void statusEl.offsetWidth;
+    statusEl.classList.add("pulse");
   }
 
   function updateStatus(extra) {
@@ -120,6 +147,7 @@
     t += " · 可落 " + n + " 处";
     if (extra) t += " · " + extra;
     statusEl.textContent = t;
+    pulseStatus();
   }
 
   function finish(title, msg) {
@@ -168,10 +196,21 @@
   }
 
   function play(pos) {
-    if (over || suspended) return;
-    if (!applyMove(pos, turn)) return;
-    render();
-    afterMove();
+    if (over || suspended || animating) return;
+    var color = turn;
+    var flips = flipsAt(pos, color);
+    if (!flips.length) return;
+    var flipSet = {};
+    for (var i = 0; i < flips.length; i++) flipSet[flips[i]] = 1;
+    board[pos] = color;
+    for (var j = 0; j < flips.length; j++) board[flips[j]] = color;
+    animating = true;
+    render({ placePos: pos, flipSet: flipSet });
+    var wait = flips.length ? 520 : 380;
+    setTimeout(function () {
+      animating = false;
+      afterMove();
+    }, wait);
   }
 
   function onClick(ev) {

@@ -16,6 +16,7 @@
   var cells = [];
   var game = null;
   var selected = null;
+  var lastPlaced = null;
   var dests = [];
   var over = false;
   var suspended = false;
@@ -91,11 +92,20 @@
           if (!over && game.in_check() && p.type === "k" && p.color === game.turn()) {
             el.classList.add("check");
           }
+          if (lastPlaced && lastPlaced.r === rank && lastPlaced.c === file) {
+            el.classList.add("placed");
+          }
           el.textContent = LABEL[ch] || ch;
           cell.appendChild(el);
         }
       }
     }
+  }
+
+  function pulseStatus() {
+    statusEl.classList.remove("pulse");
+    void statusEl.offsetWidth;
+    statusEl.classList.add("pulse");
   }
 
   function updateStatus(extra) {
@@ -107,6 +117,7 @@
     if (game.in_check()) t += " · 被将军！";
     if (extra) t += " · " + extra;
     statusEl.textContent = t;
+    pulseStatus();
   }
 
   function finish(title, msg) {
@@ -146,7 +157,10 @@
   function tryMove(from, to) {
     var m = game.move({ from: from, to: to });
     if (!m) return false;
+    var dest = fromAlg(to);
+    lastPlaced = { r: dest.r, c: dest.c };
     render();
+    setTimeout(function () { lastPlaced = null; }, 400);
     afterMove();
     return true;
   }
@@ -284,6 +298,10 @@
         var m = aiPick();
         if (m) {
           game.move(m);
+          var dest = fromAlg(m.to);
+          lastPlaced = { r: dest.r, c: dest.c };
+          render();
+          setTimeout(function () { lastPlaced = null; }, 400);
           afterMove();
         }
       }, delay);
@@ -292,7 +310,7 @@
 
   function reset() {
     game = new Xiangqi();
-    selected = null; dests = []; over = false;
+    selected = null; dests = []; lastPlaced = null; over = false;
     render(); updateStatus();
   }
 

@@ -202,7 +202,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register(BASE + "/sw.js?v=3", { scope: BASE + "/" }).then(function () {
+    navigator.serviceWorker.register(BASE + "/sw.js?v=4", { scope: BASE + "/" }).then(function () {
       return navigator.serviceWorker.ready;
     }).then(function () {
       // The first document loads before the worker controls it, so its files

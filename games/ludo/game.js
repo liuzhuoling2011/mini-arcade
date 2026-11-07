@@ -11,10 +11,10 @@
    */
 
   var COLORS = [
-    { id: "red", name: "红", fill: "#ef4444", soft: "#fecaca" },
-    { id: "yellow", name: "黄", fill: "#fbbf24", soft: "#fef3c7" },
-    { id: "blue", name: "蓝", fill: "#3b82f6", soft: "#bfdbfe" },
-    { id: "green", name: "绿", fill: "#22c55e", soft: "#bbf7d0" }
+    { id: "red", name: "红", fill: "#ef4444", soft: "#fecaca", deep: "#991b1b", light: "#fca5a5" },
+    { id: "yellow", name: "黄", fill: "#fbbf24", soft: "#fef3c7", deep: "#a16207", light: "#fde68a" },
+    { id: "blue", name: "蓝", fill: "#3b82f6", soft: "#bfdbfe", deep: "#1e40af", light: "#93c5fd" },
+    { id: "green", name: "绿", fill: "#22c55e", soft: "#bbf7d0", deep: "#166534", light: "#86efac" }
   ];
   var TRACK = 52;
   var HOME_LEN = 6;
@@ -58,6 +58,10 @@
   var suspended = false;
   var aiTimer = null;
   var settings = { mode: "local", diff: "easy", humanColor: 0, count: 2 };
+  var visuals = {}; // key "c-i" -> {x,y}
+  var anim = null; // {key, from, to, start, dur, arc, done}
+  var animRaf = 0;
+
 
   // piece.pos: null = base; 0..51 = ring (absolute); 'H0'..'H5' home; 'DONE'
   function activeColors() {
@@ -88,6 +92,8 @@
     };
     dieEl.textContent = "?";
     btnRoll.disabled = false;
+    visuals = {};
+    anim = null;
     renderPlayers();
     draw();
     updateStatus();
@@ -321,6 +327,9 @@
 
     var d = 1 + ((Math.random() * 6) | 0);
     state.dice = d;
+    dieEl.classList.remove("rolling");
+    void dieEl.offsetWidth;
+    dieEl.classList.add("rolling");
     dieEl.textContent = String(d);
 
     if (d === 6) state.sixStreak++;
@@ -358,19 +367,58 @@
     if (!state || state.over || suspended) return;
     if (state.phase !== "choose") return;
     if (state.movable.indexOf(idx) < 0) return;
+    if (anim) return;
+    var color = state.turn;
     var d = state.dice;
     var extra = d === 6;
-    var result = applyMove(state.turn, idx, d);
+    var fromXY = pieceScreenPos(color, idx);
+    var result = applyMove(color, idx, d);
     state.movable = [];
-    draw();
-    if (state.over) return;
-    var delay = 280;
-    if (result.msgs && result.msgs.length) {
-      updateStatus(result.msgs.join(" → ") + "！");
-      delay = 280 + result.msgs.length * 380;
-      // brief redraw pulse already done; status shows flight
+    var toXY = pieceScreenPos(color, idx);
+    var key = color + "-" + idx;
+    var fly = !!(result.msgs && result.msgs.length);
+    if (result.msgs && result.msgs.length) updateStatus(result.msgs.join(" → ") + "！");
+    startPieceAnim(key, fromXY, toXY, fly ? 720 : 420, fly, function () {
+      draw();
+      if (state.over) return;
+      setTimeout(function () { nextTurn(extra); }, fly ? 220 : 120);
+    });
+  }
+
+  function startPieceAnim(key, fromXY, toXY, dur, arc, done) {
+    cancelAnimationFrame(animRaf);
+    anim = { key: key, from: fromXY, to: toXY, start: performance.now(), dur: dur, arc: !!arc, done: done };
+    visuals[key] = { x: fromXY.x, y: fromXY.y };
+    function tick(now) {
+      if (!anim) return;
+      var t = Math.min(1, (now - anim.start) / anim.dur);
+      var e = 1 - Math.pow(1 - t, 3);
+      var x = anim.from.x + (anim.to.x - anim.from.x) * e;
+      var y = anim.from.y + (anim.to.y - anim.from.y) * e;
+      if (anim.arc) {
+        var lift = Math.sin(Math.PI * e) * 48;
+        y -= lift;
+        x += Math.sin(Math.PI * e) * ((anim.to.x - anim.from.x) * 0.05);
+      }
+      visuals[anim.key] = { x: x, y: y };
+      draw();
+      if (t < 1) {
+        animRaf = requestAnimationFrame(tick);
+      } else {
+        var cb = anim.done;
+        visuals[anim.key] = { x: anim.to.x, y: anim.to.y };
+        anim = null;
+        draw();
+        if (cb) cb();
+      }
     }
-    setTimeout(function () { nextTurn(extra); }, delay);
+    animRaf = requestAnimationFrame(tick);
+  }
+
+  function pulseStatus() {
+    statusEl.classList.remove("pulse");
+    void statusEl.offsetWidth;
+    statusEl.classList.add("pulse");
   }
 
   function updateStatus(extra) {
@@ -381,6 +429,7 @@
     else if (state.phase === "choose") t += " · 点数 " + state.dice;
     if (extra) t += " · " + extra;
     statusEl.textContent = t;
+    pulseStatus();
   }
 
   function renderPlayers() {
@@ -442,81 +491,82 @@
   function draw() {
     var S = 600;
     ctx.clearRect(0, 0, S, S);
-    // board bg
-    var g = ctx.createLinearGradient(0, 0, S, S);
-    g.addColorStop(0, "#121a2e");
-    g.addColorStop(1, "#0a1020");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, S, S);
 
-    // bases
+    // felt/wood board background with vignette
+    var g = ctx.createRadialGradient(300, 260, 40, 300, 300, 420);
+    g.addColorStop(0, "#1e2a44");
+    g.addColorStop(0.55, "#121a2e");
+    g.addColorStop(1, "#070b14");
+    ctx.fillStyle = g;
+    roundRectPath(18, 18, S - 36, S - 36, 22);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // inner bevel
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 6;
+    roundRectPath(24, 24, S - 48, S - 48, 18);
+    ctx.stroke();
+
+    // bases with 3D bevel
     COLORS.forEach(function (col, ci) {
       if (activeColors().indexOf(ci) < 0) return;
       var b = [
         { x: 40, y: 40 }, { x: 390, y: 40 }, { x: 390, y: 390 }, { x: 40, y: 390 }
       ][ci];
-      roundRect(b.x, b.y, 170, 170, 16, col.soft, col.fill);
-      ctx.fillStyle = col.fill;
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText(col.name, b.x + 14, b.y + 28);
+      drawBasePad(b.x, b.y, 170, 170, col);
+      ctx.fillStyle = col.deep;
+      ctx.font = "bold 15px sans-serif";
+      ctx.fillText(col.name + "方机场", b.x + 14, b.y + 26);
     });
 
-    // shortcut flight lanes (under cells)
+    // glowing shortcut lanes
     SHORTCUTS.forEach(function (sc, ci) {
       if (activeColors().indexOf(ci) < 0) return;
       var a = cellXY(sc.trigger), b = cellXY(sc.dest);
+      var mx = (a.x + b.x) / 2 * 0.32 + 300 * 0.68;
+      var my = (a.y + b.y) / 2 * 0.32 + 300 * 0.68;
+      ctx.save();
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
-      // bow toward center so the lane is visible across the board
-      var mx = (a.x + b.x) / 2 * 0.35 + 300 * 0.65;
-      var my = (a.y + b.y) / 2 * 0.35 + 300 * 0.65;
       ctx.quadraticCurveTo(mx, my, b.x, b.y);
+      ctx.strokeStyle = colAlpha(COLORS[ci].fill, 0.22);
+      ctx.lineWidth = 10;
+      ctx.stroke();
       ctx.strokeStyle = COLORS[ci].fill;
-      ctx.globalAlpha = 0.35;
-      ctx.lineWidth = 4;
-      ctx.setLineDash([8, 6]);
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([10, 8]);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
-      // arrow head at dest
       var ang = Math.atan2(b.y - my, b.x - mx);
       ctx.beginPath();
       ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x - 12 * Math.cos(ang - 0.4), b.y - 12 * Math.sin(ang - 0.4));
-      ctx.lineTo(b.x - 12 * Math.cos(ang + 0.4), b.y - 12 * Math.sin(ang + 0.4));
+      ctx.lineTo(b.x - 14 * Math.cos(ang - 0.45), b.y - 14 * Math.sin(ang - 0.45));
+      ctx.lineTo(b.x - 14 * Math.cos(ang + 0.45), b.y - 14 * Math.sin(ang + 0.45));
       ctx.closePath();
       ctx.fillStyle = COLORS[ci].fill;
-      ctx.globalAlpha = 0.55;
+      ctx.globalAlpha = 0.7;
       ctx.fill();
       ctx.globalAlpha = 1;
+      ctx.restore();
     });
 
-    // ring cells (color stations tinted; flight triggers marked ✈)
+    // ring cells
     for (var i = 0; i < TRACK; i++) {
       var p = cellXY(i);
       var isStart = START.indexOf(i) >= 0;
       var startColor = START.indexOf(i);
       var owner = TILE_OWNER[i];
       var isTrigger = SHORTCUTS.some(function (sc) { return sc.trigger === i; });
-      var r = isStart || isTrigger ? 16 : 12;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      if (isStart && activeColors().indexOf(startColor) >= 0) {
-        ctx.fillStyle = COLORS[startColor].soft;
-        ctx.strokeStyle = COLORS[startColor].fill;
-      } else if (owner != null && activeColors().indexOf(owner) >= 0) {
-        ctx.fillStyle = COLORS[owner].soft;
-        ctx.strokeStyle = COLORS[owner].fill;
-      } else {
-        ctx.fillStyle = "#1e293b";
-        ctx.strokeStyle = "#64748b";
-      }
-      ctx.fill();
-      ctx.lineWidth = isTrigger ? 3 : 2;
-      ctx.stroke();
+      var r = isStart || isTrigger ? 17 : 13;
+      drawCell3d(p.x, p.y, r, isStart && activeColors().indexOf(startColor) >= 0 ? COLORS[startColor]
+        : (owner != null && activeColors().indexOf(owner) >= 0 ? COLORS[owner] : null), isTrigger);
       if (isTrigger) {
-        ctx.fillStyle = COLORS[TILE_OWNER[i] != null ? TILE_OWNER[i] : 0].fill;
-        ctx.font = "bold 11px sans-serif";
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 12px sans-serif";
         ctx.textAlign = "center";
         ctx.fillText("✈", p.x, p.y + 4);
         ctx.textAlign = "left";
@@ -527,29 +577,31 @@
     activeColors().forEach(function (c) {
       for (var h = 0; h < HOME_LEN; h++) {
         var hp = homeXY(c, h);
-        ctx.beginPath();
-        ctx.arc(hp.x, hp.y, 11, 0, Math.PI * 2);
-        ctx.fillStyle = COLORS[c].soft;
-        ctx.strokeStyle = COLORS[c].fill;
-        ctx.fill(); ctx.stroke();
+        drawCell3d(hp.x, hp.y, 12, COLORS[c], false);
       }
     });
 
-    // center
+    // center podium
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(300, 300, 36, 0, Math.PI * 2);
-    ctx.fillStyle = "#0f172a";
-    ctx.strokeStyle = "#94a3b8";
-    ctx.fill(); ctx.stroke();
+    ctx.arc(300, 300, 42, 0, Math.PI * 2);
+    var cg = ctx.createRadialGradient(290, 285, 6, 300, 300, 42);
+    cg.addColorStop(0, "#334155");
+    cg.addColorStop(1, "#0f172a");
+    ctx.fillStyle = cg;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(226,232,240,0.45)";
+    ctx.stroke();
     ctx.fillStyle = "#e2e8f0";
-    ctx.font = "bold 14px sans-serif";
+    ctx.font = "bold 15px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("终点", 300, 305);
+    ctx.fillText("终点", 300, 306);
     ctx.textAlign = "left";
+    ctx.restore();
 
     if (!state) return;
 
-    // highlight movable
     var movableSet = {};
     if (state.phase === "choose") {
       state.movable.forEach(function (mi) { movableSet[mi] = 1; });
@@ -557,20 +609,129 @@
 
     activeColors().forEach(function (c) {
       state.pieces[c].forEach(function (pos, idx) {
-        var xy = pieceScreenPos(c, idx);
-        ctx.beginPath();
-        ctx.arc(xy.x, xy.y, 14, 0, Math.PI * 2);
-        ctx.fillStyle = COLORS[c].fill;
-        ctx.strokeStyle = "#fff";
-        ctx.lineWidth = state.phase === "choose" && state.turn === c && movableSet[idx] ? 4 : 2;
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 12px sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(String(idx + 1), xy.x, xy.y + 4);
-        ctx.textAlign = "left";
+        var key = c + "-" + idx;
+        var xy = visuals[key] || pieceScreenPos(c, idx);
+        if (!anim || anim.key !== key) visuals[key] = { x: xy.x, y: xy.y };
+        var highlight = state.phase === "choose" && state.turn === c && movableSet[idx];
+        drawPlane(xy.x, xy.y, COLORS[c], idx + 1, highlight);
       });
     });
+  }
+
+  function colAlpha(hex, a) {
+    // simple #rrggbb
+    var r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+  }
+
+  function roundRectPath(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawBasePad(x, y, w, h, col) {
+    roundRectPath(x, y, w, h, 18);
+    var g = ctx.createLinearGradient(x, y, x + w, y + h);
+    g.addColorStop(0, col.soft);
+    g.addColorStop(1, col.light);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = col.fill;
+    ctx.stroke();
+    // inset highlight
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.lineWidth = 1.5;
+    roundRectPath(x + 4, y + 4, w - 8, h - 8, 14);
+    ctx.stroke();
+  }
+
+  function drawCell3d(x, y, r, col, trigger) {
+    ctx.beginPath();
+    ctx.arc(x + 1.5, y + 2.5, r, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    if (col) {
+      var g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, 2, x, y, r);
+      g.addColorStop(0, "#fff");
+      g.addColorStop(0.25, col.soft);
+      g.addColorStop(1, col.fill);
+      ctx.fillStyle = g;
+      ctx.strokeStyle = col.deep;
+    } else {
+      var g2 = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, 2, x, y, r);
+      g2.addColorStop(0, "#475569");
+      g2.addColorStop(1, "#1e293b");
+      ctx.fillStyle = g2;
+      ctx.strokeStyle = "#64748b";
+    }
+    ctx.fill();
+    ctx.lineWidth = trigger ? 3 : 1.8;
+    ctx.stroke();
+  }
+
+  function drawPlane(x, y, col, num, highlight) {
+    ctx.save();
+    ctx.translate(x, y);
+    // shadow
+    ctx.beginPath();
+    ctx.ellipse(2, 8, 14, 6, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fill();
+    // body
+    ctx.beginPath();
+    ctx.moveTo(0, -16);
+    ctx.quadraticCurveTo(10, -2, 7, 12);
+    ctx.lineTo(0, 8);
+    ctx.lineTo(-7, 12);
+    ctx.quadraticCurveTo(-10, -2, 0, -16);
+    ctx.closePath();
+    var g = ctx.createLinearGradient(-10, -16, 12, 14);
+    g.addColorStop(0, col.light);
+    g.addColorStop(0.45, col.fill);
+    g.addColorStop(1, col.deep);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.lineWidth = highlight ? 3 : 1.5;
+    ctx.strokeStyle = highlight ? "#fff" : "rgba(255,255,255,0.55)";
+    ctx.stroke();
+    // wings
+    ctx.beginPath();
+    ctx.moveTo(-16, 0);
+    ctx.lineTo(16, 0);
+    ctx.lineTo(10, 5);
+    ctx.lineTo(-10, 5);
+    ctx.closePath();
+    ctx.fillStyle = col.deep;
+    ctx.globalAlpha = 0.85;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // cockpit
+    ctx.beginPath();
+    ctx.ellipse(0, -6, 4, 5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.fill();
+    // number
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(String(num), 0, 4);
+    ctx.textAlign = "left";
+    if (highlight) {
+      ctx.beginPath();
+      ctx.arc(0, 0, 20, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function roundRect(x, y, w, h, r, fill, stroke) {
