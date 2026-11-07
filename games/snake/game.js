@@ -299,7 +299,10 @@
       const d = map[btn.dataset.dir];
       if (d) setDir(d[0], d[1]);
     };
-    btn.addEventListener("pointerdown", handler);
+    btn.addEventListener("pointerdown", (e) => {
+      try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+      handler(e);
+    });
   });
 
   // swipe

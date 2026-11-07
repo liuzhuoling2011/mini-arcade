@@ -1,75 +1,82 @@
-html, body { height: 100%; overflow: hidden; }
+html, body { height: 100%; overflow: hidden; touch-action: none; }
 body {
   height: 100dvh;
   min-height: 0;
   display: flex;
   align-items: stretch;
   justify-content: center;
-  padding:
-    max(4px, env(safe-area-inset-top))
-    max(8px, env(safe-area-inset-right))
-    max(4px, env(safe-area-inset-bottom))
-    max(8px, env(safe-area-inset-left));
+  padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
 }
 .app {
   flex: 1;
   min-height: 0;
-  width: min(1100px, 100%);
+  width: 100%;
   height: 100%;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  justify-items: center;
-  align-content: stretch;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 8px;
 }
-.top, .toolbar { width: min(640px, 100%); }
-.logo { font-size: clamp(20px, 5.5vw, 36px); }
-.tagline { margin-top: 2px; }
-.scores { gap: 6px; }
-.score-card { min-width: 58px; padding: 4px 8px 6px; }
-.score-card .value { font-size: 16px; }
-.toolbar { padding: 6px 8px; }
-.btn, .pad { min-width: 44px; min-height: 44px; }
+.tagline, .hint, .foot, .tips { display: none; }
+.top { grid-column: 1; grid-row: 1; width: auto; justify-self: start; align-items: center; }
+.toolbar { grid-column: 2; grid-row: 1; width: auto; justify-self: end; padding: 4px 8px; }
+.play-area { grid-column: 1 / -1; grid-row: 2; }
+.logo { font-size: clamp(18px, 3.5vw, 30px); }
+.score-card { min-width: 56px; padding: 4px 8px; }
+.score-card .value { font-size: 15px; }
 .play-area {
-  min-height: 0;
-  height: 100%;
+  container-type: size;
   width: 100%;
-  flex-wrap: nowrap;
+  height: 100%;
+  min-height: 0;
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  flex-wrap: nowrap;
 }
 .board-wrap {
-  height: 100%;
-  width: auto;
-  max-width: min(72vw, 280px);
-  aspect-ratio: 1 / 2;
-  padding: 6px;
+  width: min(calc(100cqh / 2), calc(100cqw - 84px), 420px);
+  height: calc(min(calc(100cqh / 2), calc(100cqw - 84px), 420px) * 2);
+  max-width: none;
+  padding: 4px;
+  flex: 0 0 auto;
 }
 #game { width: 100%; height: 100%; }
-.side { width: auto; align-self: center; }
-.tips, .foot, .tagline { display: none; }
-.panel { padding: 8px; }
-#next { width: 72px; height: 72px; }
-.pad.wide { min-height: 44px; width: min(208px, 70vw); }
-@media (max-height: 820px) {
-  .hint { display: none; }
-  .logo { font-size: 22px; }
+.side { width: auto; }
+.panel { padding: 6px; }
+#next { width: 64px; height: 64px; }
+.dpad {
+  position: fixed;
+  z-index: 6;
+  right: max(8px, env(safe-area-inset-right));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  display: none;
+  gap: 6px;
+  pointer-events: none;
+  background: transparent;
+}
+.pad, .pad.wide {
+  pointer-events: auto;
+  touch-action: none;
+  width: 52px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: rgba(18, 24, 48, 0.34);
+  box-shadow: none;
+}
+.pad.wide { width: 112px; height: 44px; }
+@media (max-width: 900px) and (orientation: portrait) {
+  .dpad { display: flex; }
+  .play-area { box-sizing: border-box; padding-bottom: 158px; }
+  .board-wrap { width: min(calc(100cqh / 2), calc(100cqw - 88px)); height: calc(min(calc(100cqh / 2), calc(100cqw - 88px)) * 2); }
 }
 @media (orientation: landscape) and (max-height: 540px) {
-  .app {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas: "top toolbar toolbar" "play play pad";
-  }
-  .top { grid-area: top; width: auto; justify-self: start; align-self: center; }
-  .toolbar { grid-area: toolbar; width: auto; justify-self: end; align-self: center; }
-  .play-area { grid-area: play; }
-  .dpad { grid-area: pad; display: flex; align-self: center; }
-  .board-wrap { height: 100%; max-width: min(34vw, 170px); }
-  .pad { width: 48px; height: 44px; }
-  .pad.wide { width: 156px; }
-}
-@media (max-width: 720px), (pointer: coarse), (max-height: 540px) {
+  .logo { display: none; }
   .dpad { display: flex; }
+  .board-wrap { width: min(calc(100cqh / 2), calc(100cqw - 160px)); height: calc(min(calc(100cqh / 2), calc(100cqw - 160px)) * 2); }
 }

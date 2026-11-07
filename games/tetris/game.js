@@ -415,15 +415,33 @@
 
   document.querySelectorAll(".pad").forEach((btn) => {
     const act = btn.dataset.act;
-    const handler = (e) => {
-      e.preventDefault();
+    let heldId = null;
+    let repeat = 0;
+    const fire = () => {
       if (act === "left") move(-1);
       else if (act === "right") move(1);
       else if (act === "down") softDrop();
       else if (act === "rot") rotate();
       else if (act === "drop") hardDrop();
     };
-    btn.addEventListener("pointerdown", handler);
+    const stop = (e) => {
+      if (heldId == null || (e && e.pointerId !== heldId)) return;
+      heldId = null;
+      clearInterval(repeat);
+      repeat = 0;
+    };
+    btn.addEventListener("pointerdown", (e) => {
+      if (heldId != null) return;
+      e.preventDefault();
+      heldId = e.pointerId;
+      try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+      fire();
+      if (act === "left" || act === "right" || act === "down") {
+        repeat = setInterval(fire, act === "down" ? 45 : 110);
+      }
+    });
+    btn.addEventListener("pointerup", stop);
+    btn.addEventListener("pointercancel", stop);
   });
 
   // swipe / tap on board
