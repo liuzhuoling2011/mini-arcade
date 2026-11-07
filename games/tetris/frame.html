@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#070b16">
+<title>俄罗斯方块 · 炫彩版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="fit.css">
+</head>
+<body>
+  <div class="bg-orbs" aria-hidden="true">
+    <span class="orb o1"></span>
+    <span class="orb o2"></span>
+    <span class="orb o3"></span>
+  </div>
+
+  <main class="app">
+    <header class="top">
+      <div class="brand">
+        <h1 class="logo">TETRIS</h1>
+        <p class="tagline">霓虹方块 · 消行冲关</p>
+      </div>
+      <div class="scores">
+        <div class="score-card">
+          <span class="label">得分</span>
+          <span class="value" id="score">0</span>
+        </div>
+        <div class="score-card best">
+          <span class="label">最高分</span>
+          <span class="value" id="best">0</span>
+        </div>
+        <div class="score-card level">
+          <span class="label">等级</span>
+          <span class="value" id="level">1</span>
+        </div>
+        <div class="score-card">
+          <span class="label">消行</span>
+          <span class="value" id="lines">0</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <p class="hint">←→ / A D 移动 · ↑ / W 旋转 · ↓ / S 软降 · 空格硬降 · P 暂停</p>
+      <div class="actions">
+        <button type="button" class="btn ghost" id="btnPause">暂停</button>
+        <button type="button" class="btn primary" id="btnNew">新游戏</button>
+      </div>
+    </div>
+
+    <div class="play-area">
+      <div class="board-wrap">
+        <canvas id="game" width="300" height="600" aria-label="俄罗斯方块棋盘"></canvas>
+      </div>
+      <aside class="side">
+        <div class="panel">
+          <span class="panel-label">下一个</span>
+          <canvas id="next" width="120" height="120"></canvas>
+        </div>
+        <div class="panel tips">
+          <span class="panel-label">操作</span>
+          <ul>
+            <li>←→ 移动</li>
+            <li>↑ 旋转</li>
+            <li>↓ 软降</li>
+            <li>空格 硬降</li>
+            <li>P / 空格旁 暂停</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+
+    <div class="dpad" aria-hidden="true">
+      <button type="button" class="pad" data-act="rot">↻</button>
+      <div class="pad-row">
+        <button type="button" class="pad" data-act="left">←</button>
+        <button type="button" class="pad" data-act="down">↓</button>
+        <button type="button" class="pad" data-act="right">→</button>
+      </div>
+      <button type="button" class="pad wide" data-act="drop">硬降</button>
+    </div>
+
+    <footer class="foot">
+      <p>消掉整行得分；等级越高下落越快。一次消多行奖励更高。</p>
+    </footer>
+  </main>
+
+  <div class="overlay" id="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-glow"></div>
+      <h2 id="modalTitle">游戏结束</h2>
+      <p id="modalMsg">本局得分 0</p>
+      <div class="modal-actions">
+        <button type="button" class="btn primary" id="btnRestart">再来一局</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

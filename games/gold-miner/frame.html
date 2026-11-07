@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>黄金矿工</title>
+<style>#dbgBtn{display:none !important}</style>
+<style>
+  :root { color-scheme: dark; }
+  html,body{margin:0;height:100%;background:#0d0d0d;overflow:hidden;
+    font-family:"PingFang SC","Microsoft YaHei",sans-serif;-webkit-tap-highlight-color:transparent;touch-action:none;}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  canvas#c{display:block;max-width:100%;max-height:100%;background:#000;box-shadow:0 0 0 2px #333;}
+  #load{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:#111;color:#f5d76e;z-index:5;gap:12px;}
+  #load bar{display:block;width:200px;height:8px;background:#333;border-radius:4px;overflow:hidden;}
+  #load i{display:block;height:100%;width:0;background:linear-gradient(90deg,#c9a227,#f5d76e);}
+  #load.hide{opacity:0;pointer-events:none;transition:opacity .35s;}
+  /* Virtual pads live in letterbox margin — never over the 550×400 playfield */
+  #pads{
+    position:fixed;z-index:30;display:none;flex-direction:column;gap:10px;
+    touch-action:none;-webkit-user-select:none;user-select:none;pointer-events:auto;
+  }
+  #pads.on{display:flex;}
+  #pads button{
+    width:64px;height:64px;border-radius:50%;border:2px solid rgba(255,255,255,0.65);
+    background:rgba(20,20,20,0.55);color:#fff;font:bold 14px "PingFang SC","Microsoft YaHei",sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    padding:0;margin:0;-webkit-appearance:none;appearance:none;cursor:pointer;
+    box-shadow:0 2px 10px rgba(0,0,0,0.35);
+  }
+  #pads button:active, #pads button.held{
+    background:rgba(220,80,40,0.65);border-color:rgba(255,255,255,0.9);
+  }
+  #pads button.armed{
+    background:rgba(220,80,40,0.55);
+  }
+  #pads button span.sub{font:12px sans-serif;opacity:0.9;}
+  #pads button:disabled{opacity:0.45;}
+  /* Debug level jump — tiny chip pinned inside the canvas' bottom-right corner (pads live outside the canvas) */
+  #dbgBtn{position:fixed;z-index:31;display:none;padding:2px 7px;border-radius:6px;border:1px solid rgba(255,255,255,0.35);
+    background:rgba(0,0,0,0.28);color:rgba(255,255,255,0.7);font:11px/1.4 ui-monospace,Menlo,Consolas,monospace;
+    cursor:pointer;-webkit-appearance:none;appearance:none;touch-action:manipulation;}
+  #dbgBtn.on{display:block;}
+  #dbgBtn:active{background:rgba(0,0,0,0.55);}
+  #dbgModal{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);}
+  #dbgModal.on{display:flex;}
+  #dbgCard{background:#1d140a;border:2px solid #e0b84a;border-radius:12px;color:#ffe9a0;padding:14px 16px;width:min(320px,92vw);
+    box-shadow:0 8px 30px rgba(0,0,0,0.5);font:14px "PingFang SC","Microsoft YaHei",sans-serif;}
+  #dbgCard h3{margin:0 0 6px;font-size:16px;}
+  #dbgCard .hint{font-size:12px;color:#cdb98a;margin-bottom:10px;}
+  #dbgLv{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px;}
+  #dbgLv button,#dbgVar button{height:36px;border-radius:8px;border:1px solid #8a6a2a;background:#3a2810;color:#ffe9a0;font:bold 15px sans-serif;cursor:pointer;}
+  #dbgLv button.sel,#dbgVar button.sel{background:#e0b84a;color:#2a1a05;border-color:#ffe9a0;}
+  #dbgVar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;}
+  #dbgVar button{font-size:13px;}
+  #dbgGoal{font-size:12px;color:#9fe28f;margin-bottom:10px;min-height:16px;}
+  #dbgHitRow{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer;user-select:none;}
+  #dbgHitRow input{width:18px;height:18px;accent-color:#e0b84a;}
+  #dbgAct{display:flex;gap:8px;}
+  #dbgAct button{flex:1;height:38px;border-radius:8px;border:0;font:bold 15px "PingFang SC","Microsoft YaHei",sans-serif;cursor:pointer;}
+  #dbgGo{background:#2e8b57;color:#fff;}
+  #dbgClose{background:#555;color:#eee;}
+</style>
+</head>
+<body>
+<div id="load"><div>黄金矿工加载中…</div><bar><i id="bar"></i></bar><div id="pct">0%</div></div>
+<div id="wrap"><canvas id="c" width="550" height="400"></canvas></div>
+<div id="pads" aria-hidden="true">
+  <button type="button" id="btnDrop" aria-label="放钩"><span>放钩</span></button>
+  <button type="button" id="btnDyn" aria-label="炸药"><span>炸药</span><span class="sub" id="dynCount">0</span></button>
+</div>
+<button type="button" id="dbgBtn" aria-label="debug 跳关">debug</button>
+<div id="dbgModal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div id="dbgCard">
+    <h3>Debug · 跳关</h3>
+    <div class="hint">共 15 关（原版 L1–L10 + 加难 L11–L15），每关 3 种布局</div>
+    <div id="dbgLv"></div>
+    <div id="dbgVar">
+      <button type="button" data-v="0" class="sel">随机</button>
+      <button type="button" data-v="1">布局1</button>
+      <button type="button" data-v="2">布局2</button>
+      <button type="button" data-v="3">布局3</button>
+    </div>
+    <div id="dbgGoal"></div>
+    <label id="dbgHitRow"><input type="checkbox" id="dbgHit"> 显示碰撞形状（钩爪红 / 物品青）</label>
+    <div id="dbgAct"><button type="button" id="dbgClose">取消</button><button type="button" id="dbgGo">跳转</button></div>
+  </div>
+</div>
+<script src="levels.js?v=13"></script>
+<script src="swing.js?v=13"></script>
+<script src="game.js?v=13"></script>
+</body>
+</html>

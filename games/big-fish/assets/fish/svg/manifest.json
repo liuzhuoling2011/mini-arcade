@@ -1,0 +1,62 @@
+{
+  "player": "assets/fish/svg/player.svg",
+  "playerSwim": [
+    "assets/fish/svg/player-swim/01.svg",
+    "assets/fish/svg/player-swim/02.svg",
+    "assets/fish/svg/player-swim/03.svg",
+    "assets/fish/svg/player-swim/04.svg",
+    "assets/fish/svg/player-swim/05.svg",
+    "assets/fish/svg/player-swim/06.svg"
+  ],
+  "npc": {
+    "1": [
+      "assets/fish/svg/type1-frames/1.svg",
+      "assets/fish/svg/type1-frames/2.svg",
+      "assets/fish/svg/type1-frames/3.svg",
+      "assets/fish/svg/type1-frames/4.svg"
+    ],
+    "2": [
+      "assets/fish/svg/type2-frames/1.svg",
+      "assets/fish/svg/type2-frames/2.svg",
+      "assets/fish/svg/type2-frames/3.svg",
+      "assets/fish/svg/type2-frames/4.svg"
+    ],
+    "3": [
+      "assets/fish/svg/type3-frames/1.svg",
+      "assets/fish/svg/type3-frames/2.svg",
+      "assets/fish/svg/type3-frames/3.svg",
+      "assets/fish/svg/type3-frames/4.svg"
+    ],
+    "4": [
+      "assets/fish/svg/type4-frames/1.svg",
+      "assets/fish/svg/type4-frames/2.svg",
+      "assets/fish/svg/type4-frames/3.svg",
+      "assets/fish/svg/type4-frames/4.svg"
+    ],
+    "5": [
+      "assets/fish/svg/type5-frames/1.svg",
+      "assets/fish/svg/type5-frames/2.svg",
+      "assets/fish/svg/type5-frames/3.svg",
+      "assets/fish/svg/type5-frames/4.svg"
+    ],
+    "6": [
+      "assets/fish/svg/type6-frames/1.svg",
+      "assets/fish/svg/type6-frames/2.svg",
+      "assets/fish/svg/type6-frames/3.svg",
+      "assets/fish/svg/type6-frames/4.svg"
+    ],
+    "7": [
+      "assets/fish/svg/type7-frames/1.svg",
+      "assets/fish/svg/type7-frames/2.svg",
+      "assets/fish/svg/type7-frames/3.svg",
+      "assets/fish/svg/type7-frames/4.svg"
+    ],
+    "8": [
+      "assets/fish/svg/type8-frames/1.svg",
+      "assets/fish/svg/type8-frames/2.svg",
+      "assets/fish/svg/type8-frames/3.svg",
+      "assets/fish/svg/type8-frames/4.svg"
+    ]
+  },
+  "life": "assets/fish/svg/life.svg"
+}

@@ -1,0 +1,40 @@
+{
+  "name": "小游戏合集",
+  "short_name": "小游戏",
+  "description": "大鱼吃小鱼、黄金矿工、贪吃蛇、俄罗斯方块、2048",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "id": "/mini-arcade/",
+  "start_url": "/mini-arcade/",
+  "scope": "/mini-arcade/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070b16",
+  "theme_color": "#070b16",
+  "icons": [
+    {
+      "src": "/mini-arcade/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/mini-arcade/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/mini-arcade/icons/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/mini-arcade/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

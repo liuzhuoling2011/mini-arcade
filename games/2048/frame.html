@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0f1a">
+<title>2048 · 炫彩版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="fit.css">
+</head>
+<body>
+  <div class="bg-orbs" aria-hidden="true">
+    <span class="orb o1"></span>
+    <span class="orb o2"></span>
+    <span class="orb o3"></span>
+  </div>
+
+  <main class="app">
+    <header class="top">
+      <div class="brand">
+        <h1 class="logo">2048</h1>
+        <p class="tagline">合并数字 · 冲向 2048</p>
+      </div>
+      <div class="scores">
+        <div class="score-card">
+          <span class="label">得分</span>
+          <span class="value" id="score">0</span>
+          <span class="delta" id="scoreDelta" hidden></span>
+        </div>
+        <div class="score-card best">
+          <span class="label">最高分</span>
+          <span class="value" id="best">0</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <p class="hint">方向键 / WASD / 滑动 移动方块</p>
+      <button type="button" class="btn primary" id="btnNew">新游戏</button>
+    </div>
+
+    <div class="board-wrap">
+      <div class="board" id="board" aria-label="2048 棋盘">
+        <div class="grid-bg" id="gridBg"></div>
+        <div class="tiles" id="tiles"></div>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <p>合成 <strong>2048</strong> 即可获胜，也可以继续挑战更高数字。</p>
+    </footer>
+  </main>
+
+  <div class="overlay" id="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-glow"></div>
+      <h2 id="modalTitle">太棒了！</h2>
+      <p id="modalMsg">你合成了 2048！</p>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="btnContinue" hidden>继续</button>
+        <button type="button" class="btn primary" id="btnRestart">再来一局</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

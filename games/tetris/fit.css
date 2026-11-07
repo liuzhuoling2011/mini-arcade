@@ -1,0 +1,75 @@
+html, body { height: 100%; overflow: hidden; }
+body {
+  height: 100dvh;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding:
+    max(4px, env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-right))
+    max(4px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+}
+.app {
+  flex: 1;
+  min-height: 0;
+  width: min(1100px, 100%);
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  justify-items: center;
+  align-content: stretch;
+  gap: 6px;
+}
+.top, .toolbar { width: min(640px, 100%); }
+.logo { font-size: clamp(20px, 5.5vw, 36px); }
+.tagline { margin-top: 2px; }
+.scores { gap: 6px; }
+.score-card { min-width: 58px; padding: 4px 8px 6px; }
+.score-card .value { font-size: 16px; }
+.toolbar { padding: 6px 8px; }
+.btn, .pad { min-width: 44px; min-height: 44px; }
+.play-area {
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.board-wrap {
+  height: 100%;
+  width: auto;
+  max-width: min(72vw, 280px);
+  aspect-ratio: 1 / 2;
+  padding: 6px;
+}
+#game { width: 100%; height: 100%; }
+.side { width: auto; align-self: center; }
+.tips, .foot, .tagline { display: none; }
+.panel { padding: 8px; }
+#next { width: 72px; height: 72px; }
+.pad.wide { min-height: 44px; width: min(208px, 70vw); }
+@media (max-height: 820px) {
+  .hint { display: none; }
+  .logo { font-size: 22px; }
+}
+@media (orientation: landscape) and (max-height: 540px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "top toolbar toolbar" "play play pad";
+  }
+  .top { grid-area: top; width: auto; justify-self: start; align-self: center; }
+  .toolbar { grid-area: toolbar; width: auto; justify-self: end; align-self: center; }
+  .play-area { grid-area: play; }
+  .dpad { grid-area: pad; display: flex; align-self: center; }
+  .board-wrap { height: 100%; max-width: min(34vw, 170px); }
+  .pad { width: 48px; height: 44px; }
+  .pad.wide { width: 156px; }
+}
+@media (max-width: 720px), (pointer: coarse), (max-height: 540px) {
+  .dpad { display: flex; }
+}

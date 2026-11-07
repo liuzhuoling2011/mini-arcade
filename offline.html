@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070b16">
+<title>离线 · 小游戏合集</title>
+<link rel="stylesheet" href="/mini-arcade/shared/shell.css">
+</head>
+<body class="arcade-hub">
+<main class="offline-card">
+  <p class="eyebrow">没有网络</p>
+  <h1 id="offline-title">这款游戏还不能离线打开</h1>
+  <p id="offline-msg">只有在这台设备上打开过的游戏会留在本地。连上网络后从合集再进一次，之后就可以离线重玩。</p>
+  <p><a class="text-link" href="/mini-arcade/">回到合集</a></p>
+</main>
+<script>
+(function () {
+  var path = location.pathname || "";
+  var known = {
+    "big-fish": "大鱼吃小鱼",
+    "gold-miner": "黄金矿工",
+    snake: "贪吃蛇",
+    tetris: "俄罗斯方块",
+    "2048": "2048"
+  };
+  var id = "";
+  Object.keys(known).forEach(function (key) {
+    if (path.indexOf("/games/" + key + "/") !== -1) id = key;
+  });
+  if (!id) return;
+  document.getElementById("offline-title").textContent = known[id] + " 还没缓存在这台设备上";
+})();
+</script>
+</body>
+</html>

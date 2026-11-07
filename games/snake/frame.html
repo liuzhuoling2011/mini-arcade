@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#070b16">
+<title>贪吃蛇 · 炫彩版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="fit.css">
+</head>
+<body>
+  <div class="bg-orbs" aria-hidden="true">
+    <span class="orb o1"></span>
+    <span class="orb o2"></span>
+    <span class="orb o3"></span>
+  </div>
+
+  <main class="app">
+    <header class="top">
+      <div class="brand">
+        <h1 class="logo">SNAKE</h1>
+        <p class="tagline">霓虹贪吃蛇 · 越吃越长</p>
+      </div>
+      <div class="scores">
+        <div class="score-card">
+          <span class="label">得分</span>
+          <span class="value" id="score">0</span>
+        </div>
+        <div class="score-card best">
+          <span class="label">最高分</span>
+          <span class="value" id="best">0</span>
+        </div>
+        <div class="score-card level">
+          <span class="label">速度</span>
+          <span class="value" id="speed">1</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <p class="hint">方向键 / WASD 转向 · 空格暂停 · 手机滑动</p>
+      <div class="actions">
+        <button type="button" class="btn ghost" id="btnPause">暂停</button>
+        <button type="button" class="btn primary" id="btnNew">新游戏</button>
+      </div>
+    </div>
+
+    <div class="board-wrap">
+      <canvas id="game" width="480" height="480" aria-label="贪吃蛇棋盘"></canvas>
+    </div>
+
+    <div class="dpad" aria-hidden="true">
+      <button type="button" class="pad" data-dir="up">↑</button>
+      <div class="pad-row">
+        <button type="button" class="pad" data-dir="left">←</button>
+        <button type="button" class="pad" data-dir="down">↓</button>
+        <button type="button" class="pad" data-dir="right">→</button>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <p>吃到发光食物变长；撞墙或咬到自己就结束。吃得越多速度越快。</p>
+    </footer>
+  </main>
+
+  <div class="overlay" id="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-glow"></div>
+      <h2 id="modalTitle">游戏结束</h2>
+      <p id="modalMsg">本局得分 0</p>
+      <div class="modal-actions">
+        <button type="button" class="btn primary" id="btnRestart">再来一局</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

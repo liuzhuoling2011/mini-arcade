@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a4a8a">
+<title>大鱼吃小鱼 — 꼬기꼬기</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #1a4a8a;
+    font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Malgun Gothic", sans-serif;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  #stage {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 640px; height: 480px;
+    transform-origin: center center;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.45);
+    background: #2A88DD;
+  }
+  #stage canvas {
+    display: block;
+    width: 640px; height: 480px;
+    cursor: default;
+    image-rendering: auto;
+  }
+  #boot {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 15px; letter-spacing: 0.04em;
+    pointer-events: none;
+    background: linear-gradient(180deg, #5CC3FF 0%, #2A88DD 100%);
+  }
+  /* Virtual stick lives in letterbox margin — never drawn on the game canvas */
+  #joypad {
+    position: fixed;
+    z-index: 30;
+    display: none;
+    touch-action: none;
+    pointer-events: auto;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #joypad.on { display: block; }
+  #joypad canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="boot">加载中…</div>
+  <canvas id="game" width="640" height="480" style="position:relative"></canvas>
+</div>
+<div id="joypad" aria-hidden="true">
+  <canvas id="joycanvas" width="240" height="240"></canvas>
+</div>
+<script>
+  window.addEventListener("load", function () {
+    var boot = document.getElementById("boot");
+    if (boot) setTimeout(function () { boot.remove(); }, 80);
+  });
+</script>
+<script src="game.js?v=25" defer></script>
+</body>
+</html>
