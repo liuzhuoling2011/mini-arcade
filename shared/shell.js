@@ -11,7 +11,8 @@
     { id: "gomoku", name: "五子棋", blurb: "15×15 五子连珠" },
     { id: "xiangqi", name: "中国象棋", blurb: "楚河汉界" },
     { id: "reversi", name: "黑白棋", blurb: "翻转夹击" },
-    { id: "ludo", name: "飞行棋", blurb: "掷骰起飞" }
+    { id: "ludo", name: "飞行棋", blurb: "掷骰起飞" },
+    { id: "tower-bloxx", name: "盖大楼", blurb: "摇摆叠楼冲高" }
   ];
 
   var gameId = document.body.getAttribute("data-game") || "";
@@ -99,6 +100,7 @@
     if (id === "xiangqi") return "12";
     if (id === "reversi") return "168";
     if (id === "ludo") return "280";
+    if (id === "tower-bloxx") return "210";
     return "200";
   }
 
@@ -202,7 +204,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register(BASE + "/sw.js?v=5", { scope: BASE + "/" }).then(function () {
+    navigator.serviceWorker.register(BASE + "/sw.js?v=6", { scope: BASE + "/" }).then(function () {
       return navigator.serviceWorker.ready;
     }).then(function () {
       // The first document loads before the worker controls it, so its files

@@ -1,6 +1,6 @@
 # 小游戏合集
 
-九个网页小游戏放在同一个 GitHub Pages 站点里，各自有地址，合集页只负责挑选。
+十个网页小游戏放在同一个 GitHub Pages 站点里，各自有地址，合集页只负责挑选。
 
 - 合集：https://liuzhuoling2011.github.io/mini-arcade/
 - 大鱼吃小鱼：https://liuzhuoling2011.github.io/mini-arcade/games/big-fish/
@@ -12,6 +12,7 @@
 - 中国象棋：https://liuzhuoling2011.github.io/mini-arcade/games/xiangqi/
 - 黑白棋：https://liuzhuoling2011.github.io/mini-arcade/games/reversi/
 - 飞行棋：https://liuzhuoling2011.github.io/mini-arcade/games/ludo/
+- 盖大楼：https://liuzhuoling2011.github.io/mini-arcade/games/tower-bloxx/
 
 打开或刷新某一款会直接进入该游戏。大鱼吃小鱼没有「开始游戏」画面。浏览器拦截自动播放时，对局照常开始，第一次按键、点击或触摸后再出声。
 

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1a3a6e">
+<title>盖大楼</title>
+<link rel="stylesheet" href="/mini-arcade/shared/board-chrome.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="app" id="app">
+  <canvas id="game" width="400" height="640" aria-label="盖大楼游戏画面"></canvas>
+  <div class="hud" id="hud">
+    <div class="combo-wrap">
+      <span class="star" aria-hidden="true">★</span>
+      <div class="combo-bar"><i id="comboFill"></i></div>
+      <span class="mult" id="mult">x1</span>
+    </div>
+    <div class="bottom-hud">
+      <div class="pill floors" title="楼层"><span class="ico">🏢</span><b id="floors">000</b></div>
+      <div class="hint" id="hint">点屏幕 / 空格 放下</div>
+      <div class="pill pop" title="人口"><span class="ico">👤</span><b id="pop">00000</b></div>
+    </div>
+  </div>
+  <div class="overlay" id="startOverlay">
+    <div class="modal">
+      <h2>盖大楼</h2>
+      <p>诺基亚经典盖楼玩法：吊钩左右摇摆，在正中心放下楼块。对齐越好楼层越宽、倍乘越高；偏了会切边，完全落空则倒塌。</p>
+      <p class="best">最高人口 <strong id="bestPop">0</strong></p>
+      <div class="modal-actions">
+        <button type="button" class="btn primary" id="btnStart">开始盖楼</button>
+      </div>
+    </div>
+  </div>
+  <div class="overlay" id="endOverlay" hidden>
+    <div class="modal">
+      <h2 id="endTitle">大楼倒塌</h2>
+      <p id="endMsg"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn primary" id="btnAgain">再来一栋</button>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="game.js"></script>
+</body>
+</html>
