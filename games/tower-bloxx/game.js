@@ -1,10 +1,10 @@
 (function () {
   "use strict";
   /*
-   * Nokia / Jamdat Tower Bloxx–style rewrite.
-   * Lean/wobble stack, population + combo meter, dual-window floors,
-   * jumping/parachuting residents, WebAudio SFX.
-   * Refs: /workspace/xhs-nokia-tower/GAMEPLAY_NOTES.md
+   * Tower Bloxx–style remake for mini-arcade.
+   * Visuals: classic 2D yellow dual-window floors + city silhouette (XHS Nokia video).
+   * Math: Nokia City Bloxx 1.0.8 Quick-game (House.class) — see
+   * /workspace/tower-bloxx-rea/SPEC.md
    */
 
   var canvas = document.getElementById("game");
@@ -24,19 +24,33 @@
   var endTitle = document.getElementById("endTitle");
   var endMsg = document.getElementById("endMsg");
 
-  var BEST_KEY = "mini-arcade-tower-bloxx-best-v2";
+  var BEST_KEY = "mini-arcade-tower-bloxx-best-v3";
   var BLOCK_H = 40;
-  var BASE_W = 118;
-  var MIN_W = 36;
+  var BASE_W = 120;
+  var MIN_W = 40;
   var PIVOT_Y = 8;
   var CRANE_LEN0 = 78;
+  /* JAR: half-width ≈ 128; thresholds 25/50/80/127 */
+  var HALF_FP = 128;
+  var TH_PERFECT = 25;
+  var TH_GOOD = 50;
+  var TH_OK = 80;
+  var TH_LAND = 127;
+  var COMBO_MAX = 6000;
 
   var state = null;
   var suspended = false;
   var raf = 0;
   var lastTs = 0;
-  var fx = []; // stars, people, scraps
+  var fx = [];
   var audioCtx = null;
+  var imgs = {};
+
+  ["pop_icon", "build_icon", "stars", "jumpers", "star_burst"].forEach(function (n) {
+    var im = new Image();
+    im.src = "assets/" + n + ".png";
+    imgs[n] = im;
+  });
 
   function pad(n, len) {
     var s = String(Math.max(0, n | 0));
@@ -71,12 +85,18 @@
     o.connect(g); g.connect(ac.destination);
     o.start(t0); o.stop(t0 + dur + 0.02);
   }
-  function sfxLand(perfect) {
-    beep(180, 0.06, "triangle", 0.07);
-    beep(perfect ? 660 : 320, 0.09, "square", perfect ? 0.07 : 0.05, 0.02);
-    if (perfect) {
+  function sfxLand(q) {
+    if (q === 4) {
+      beep(220, 0.05, "triangle", 0.06);
+      beep(660, 0.08, "square", 0.07, 0.02);
       beep(880, 0.08, "sine", 0.05, 0.06);
       beep(1175, 0.1, "sine", 0.04, 0.1);
+    } else if (q === 3) {
+      beep(200, 0.05, "triangle", 0.06);
+      beep(520, 0.08, "square", 0.055, 0.02);
+    } else if (q >= 1) {
+      beep(180, 0.06, "triangle", 0.05);
+      beep(320, 0.07, "square", 0.04, 0.02);
     }
   }
   function sfxFail() {
@@ -84,34 +104,39 @@
     beep(90, 0.25, "triangle", 0.05, 0.08);
   }
   function sfxCombo(n) {
-    beep(500 + n * 40, 0.07, "square", 0.05);
+    beep(480 + n * 45, 0.07, "square", 0.05);
+  }
+  function sfxBank() {
+    beep(740, 0.1, "sine", 0.06);
+    beep(980, 0.12, "sine", 0.05, 0.08);
   }
 
   function resetGame() {
     state = {
-      phase: "swing", // swing | fall | miss | over
-      floors: [], // {x,w,cx}  cx = center relative to tower axis
+      phase: "swing",
+      floors: [],
       lean: 0,
       leanV: 0,
-      leanImpulse: 0,
+      leanBias: 0,
       cam: 0,
       camTarget: 0,
       angle: 0,
-      angSpeed: 1.65,
-      amp: 72,
+      period: 1.7,
+      amp: 70,
       hang: null,
       falling: null,
       comboMeter: 0,
-      mult: 1,
-      goodStreak: 0,
+      mult: 0,
+      comboScore: 0,
+      longestCombo: 0,
       floorsCount: 0,
       pop: 0,
-      stability: 3, // 0..3 segments
-      speed: 1,
-      t: 0
+      lives: 3,
+      t: 0,
+      shake: 0,
+      pauseUntil: 0
     };
-    // foundation
-    state.floors.push({ x: (W - BASE_W) / 2, w: BASE_W, cx: 0 });
+    state.floors.push({ x: (W - BASE_W) / 2, w: BASE_W, off: 0 });
     fx = [];
     spawnHang();
     updateHud();
@@ -120,24 +145,26 @@
   function topFloor() { return state.floors[state.floors.length - 1]; }
 
   function worldTopY() {
-    // foundation top near bottom; each floor stacks up (smaller y)
     return H - 96 - state.floors.length * BLOCK_H;
   }
 
   function spawnHang() {
     var prev = topFloor();
-    state.hang = { w: prev.w };
+    /* keep full previous width — City Bloxx does not slice on land */
+    var w = Math.max(MIN_W, prev.w);
+    state.hang = { w: w };
     state.phase = "swing";
-    state.speed = Math.min(2.0, 1 + state.floorsCount * 0.028);
-    state.amp = Math.min(96, 64 + state.floorsCount * 1.1);
+    /* aS / aQ-ish scaling */
+    var f = state.floorsCount;
+    state.period = Math.max(0.95, 1.7 - f * 0.012);
+    state.amp = Math.min(110, 64 + f * 1.35);
   }
 
   function hookXY() {
     var a = state.angle;
-    var len = CRANE_LEN0;
     return {
       x: W / 2 + Math.sin(a) * state.amp,
-      y: PIVOT_Y + len + Math.abs(Math.cos(a)) * 4,
+      y: PIVOT_Y + CRANE_LEN0 + Math.abs(Math.cos(a)) * 5,
       a: a
     };
   }
@@ -151,7 +178,7 @@
       x: h.x - state.hang.w / 2,
       y: h.y + 10,
       w: state.hang.w,
-      vy: 40,
+      vy: 60,
       rot: state.angle * 0.12,
       vr: 0
     };
@@ -160,144 +187,111 @@
     hintEl.textContent = "";
   }
 
-  function qualityFromOffset(dx, w) {
-    var r = Math.abs(dx) / Math.max(8, w);
-    if (r < 0.045) return "perfect";
-    if (r < 0.14) return "good";
-    if (r < 0.28) return "ok";
-    return "bad";
+  /* Map pixel offset → JAR-like fixed-point (half-width = 128) */
+  function toFP(dxPx, halfW) {
+    return (dxPx / Math.max(1, halfW)) * HALF_FP;
+  }
+
+  function qualityFromFP(absFP) {
+    if (absFP < TH_PERFECT) return 4;
+    if (absFP < TH_GOOD) return 3;
+    if (absFP < TH_OK) return 2;
+    if (absFP <= TH_LAND) return 1;
+    return 0;
+  }
+
+  function bankCombo() {
+    if (!state) return;
+    if (state.comboScore > 0) {
+      state.pop += state.comboScore;
+      sfxBank();
+    }
+    state.comboScore = 0;
+    state.mult = 0;
+    state.comboMeter = 0;
+    updateHud();
   }
 
   function land() {
     var prev = topFloor();
     var f = state.falling;
-    var left = f.x;
-    var right = f.x + f.w;
-    var pL = prev.x;
-    var pR = prev.x + prev.w;
-    var oL = Math.max(left, pL);
-    var oR = Math.min(right, pR);
-    var overlap = oR - oL;
+    var cx = f.x + f.w / 2;
+    var pcx = prev.x + prev.w / 2;
+    var dx = cx - pcx;
+    var half = prev.w / 2;
+    var fp = toFP(dx, half);
+    var absFP = Math.abs(fp);
+    var q = qualityFromFP(absFP);
 
-    if (overlap < MIN_W * 0.65) {
-      // total miss
+    if (q === 0) {
+      /* miss — eject, lose a life */
       state.phase = "miss";
-      f.vr = (left + f.w / 2 < prev.x + prev.w / 2) ? -0.15 : 0.15;
-      f.vy = 120;
+      f.vr = dx < 0 ? -0.18 : 0.18;
+      f.vy = 80;
+      if (state.comboMeter > 0 || state.mult > 0) bankCombo();
+      state.lives = Math.max(0, state.lives - 1);
       spawnJumpers(3, true);
       sfxFail();
+      updateHud();
       return;
     }
 
-    // Keep most of the block; light trim of severe overhang (original still had seams of full-ish floors)
-    var trim = 0;
-    if (left < pL) trim += pL - left;
-    if (right > pR) trim += right - pR;
-    var newW = Math.max(MIN_W, f.w - trim * 0.55);
-    // place centered on overlap mid, but preserve lean feel via cx
-    var mid = (oL + oR) / 2;
-    var newX = mid - newW / 2;
-    // clamp onto previous footprint loosely
-    if (newX < pL - 8) newX = pL - 8;
-    if (newX + newW > pR + 8) newX = pR + 8 - newW;
+    /* Keep full width (no slice); store offset for lean */
+    var newW = f.w;
+    var newX = cx - newW / 2;
+    var off = dx;
 
-    var dx = (newX + newW / 2) - (prev.x + prev.w / 2);
-    var q = qualityFromOffset(dx, prev.w);
-
-    state.floors.push({ x: newX, w: newW, cx: dx });
+    state.floors.push({ x: newX, w: newW, off: off });
     state.floorsCount++;
+    state.leanBias += off * 0.0022;
+    state.leanV += off * 0.0016;
+    state.shake = 0.35;
 
-    // lean impulse from off-center mass
-    state.leanV += dx * 0.0018;
-    state.leanImpulse = dx * 0.0025;
+    /* Combo increment (House.F): if mult==0 reset score then ++; else if meter>0 ++ */
+    if (state.mult === 0) {
+      state.comboScore = 0;
+      state.mult = 1;
+    } else if (state.comboMeter > 0) {
+      state.mult++;
+    }
+    if (state.mult > state.longestCombo) state.longestCombo = state.mult;
 
-    // scoring
-    var basePop = Math.round(14 + (newW / BASE_W) * 22);
-    var bonus = 0;
-    if (q === "perfect") {
-      state.goodStreak++;
-      state.comboMeter = Math.min(1, state.comboMeter + 0.28);
-      raiseMult(true);
-      bonus = Math.round(40 * state.mult + state.goodStreak * 12);
-      spawnStars(mid, worldTopY() - state.cam, 12);
-      sfxLand(true);
-      sfxCombo(state.mult);
-    } else if (q === "good") {
-      state.goodStreak++;
-      state.comboMeter = Math.min(1, state.comboMeter + 0.14);
-      raiseMult(false);
-      bonus = Math.round(18 * state.mult);
-      spawnStars(mid, worldTopY() - state.cam, 6);
-      sfxLand(false);
-    } else if (q === "ok") {
-      state.goodStreak = Math.max(0, state.goodStreak - 1);
-      state.comboMeter = Math.max(0, state.comboMeter - 0.08);
-      maybeDropMult();
-      bonus = Math.round(6 * Math.max(1, state.mult * 0.5));
-      spawnJumpers(1, false);
-      sfxLand(false);
+    if (q === 4) {
+      state.comboMeter = COMBO_MAX;
+      spawnStars(cx, worldTopY() - state.cam, 14);
+      sfxLand(4);
+      if (state.mult > 1) sfxCombo(state.mult);
     } else {
-      state.goodStreak = 0;
-      state.comboMeter = Math.max(0, state.comboMeter - 0.35);
-      dropMult();
-      bonus = 2;
-      spawnJumpers(2 + (Math.random() > 0.5 ? 1 : 0), true);
-      state.stability = Math.max(0, state.stability - 1);
-      sfxLand(false);
+      sfxLand(q);
+      if (q <= 2) spawnJumpers(q === 1 ? 2 : 1, q === 1);
+      if (q === 3) spawnStars(cx, worldTopY() - state.cam, 5);
     }
 
-    // big combo jumps like 00032→00302
-    if (state.mult >= 4 && (q === "perfect" || q === "good")) {
-      bonus += Math.round(55 * state.mult);
+    /* Population: floors/10 + quality; while meter active add to comboScore */
+    var floors = state.floorsCount;
+    var add = Math.floor(floors / 10) + q;
+    if (state.comboMeter > 0 && state.mult > 0) {
+      state.comboScore += state.mult * (2 + Math.floor(floors / 10) * 2);
     }
-    state.pop += basePop + bonus;
-
-    // stability recovers slowly on good hits
-    if (q === "perfect" || q === "good") {
-      if (Math.random() < 0.35 && state.stability < 3) state.stability++;
-    }
+    state.pop += add;
 
     state.falling = null;
 
-    // camera follow tower top
     var topScreen = worldTopY() - state.cam;
-    if (topScreen < H * 0.38) {
-      state.camTarget += (H * 0.38 - topScreen);
+    if (topScreen < H * 0.36) {
+      state.camTarget += (H * 0.36 - topScreen);
     }
 
-    // fail if lean too wild or width too thin or stability gone
-    if (Math.abs(state.lean) > 0.38 || newW < MIN_W + 2 || state.stability <= 0) {
-      // allow a beat of wobble then collapse
+    if (Math.abs(state.lean) > 0.42 || Math.abs(state.leanBias) > 0.55) {
       state.phase = "collapsing";
-      spawnJumpers(4, true);
+      spawnJumpers(5, true);
       sfxFail();
-      setTimeout(function () { if (state) gameOver(); }, 700);
+      state.pauseUntil = state.t + 0.7;
     } else {
       state.phase = "pause";
-      setTimeout(function () {
-        if (!state || state.phase === "over" || state.phase === "collapsing") return;
-        spawnHang();
-      }, 160);
+      state.pauseUntil = state.t + 0.18;
     }
     updateHud();
-  }
-
-  function raiseMult(perfect) {
-    if (state.comboMeter >= 0.98) {
-      state.mult = Math.min(7, state.mult + 1);
-      state.comboMeter = 0.25;
-    } else if (perfect && state.goodStreak >= 2 && state.mult < 2) {
-      state.mult = 2;
-    }
-    // climb toward streak-based mult
-    var want = Math.min(7, 1 + Math.floor(state.goodStreak / 2));
-    if (want > state.mult && state.comboMeter > 0.5) state.mult = want;
-  }
-  function maybeDropMult() {
-    if (state.mult > 1 && Math.random() < 0.45) state.mult--;
-  }
-  function dropMult() {
-    state.mult = Math.max(1, state.mult - 1 - (state.mult > 4 ? 1 : 0));
   }
 
   function spawnStars(x, y, n) {
@@ -318,64 +312,82 @@
     for (var i = 0; i < n; i++) {
       fx.push({
         kind: chute && i === 0 ? "chute" : "jumper",
-        x: mid + (Math.random() - 0.5) * 40,
-        y: top + 10,
-        vx: (Math.random() - 0.5) * 2.5,
-        vy: -1.5 - Math.random() * 2,
-        life: 90 + Math.random() * 40,
+        x: mid + (Math.random() - 0.5) * 44,
+        y: top + 8,
+        vx: (Math.random() - 0.5) * 2.8,
+        vy: -1.6 - Math.random() * 2.2,
+        life: 95 + Math.random() * 40,
         swing: Math.random() * 6
       });
     }
   }
 
-  function gameOver() {
+  function gameOver(reason) {
     if (!state || state.phase === "over") return;
+    if (state.comboMeter > 0 || state.comboScore > 0) bankCombo();
     state.phase = "over";
     var best = loadBest();
     if (state.pop > best) { saveBest(state.pop); best = state.pop; }
     bestEl.textContent = String(best);
-    endTitle.textContent = "大楼倒塌";
-    endMsg.textContent = "盖了 " + state.floorsCount + " 层 · 人口 " + pad(state.pop, 5) + "\n最高人口 " + pad(best, 5);
+    endTitle.textContent = reason || "大楼倒塌";
+    endMsg.textContent =
+      "盖了 " + state.floorsCount + " 层 · 人口 " + pad(state.pop, 5) +
+      "\n最长连击 x" + state.longestCombo +
+      "\n最高人口 " + pad(best, 5);
     endOverlay.hidden = false;
     updateHud();
   }
 
   function updateHud() {
     if (!state) return;
-    comboFill.style.width = Math.round(state.comboMeter * 100) + "%";
-    multEl.textContent = "x" + state.mult;
+    var pct = state.comboMeter > 0 ? Math.min(100, (state.comboMeter / COMBO_MAX) * 100) : 0;
+    comboFill.style.width = Math.round(pct) + "%";
+    multEl.textContent = state.mult > 1 ? ("x" + state.mult) : (state.mult === 1 && state.comboMeter > 0 ? "x1" : "");
     floorsEl.textContent = pad(state.floorsCount, 3);
     popEl.textContent = pad(state.pop, 5);
     var segs = stabSeg.querySelectorAll("i");
     for (var i = 0; i < segs.length; i++) {
-      segs[i].classList.toggle("on", i < state.stability);
+      segs[i].classList.toggle("on", i < state.lives);
     }
   }
 
   function tick(dt) {
     if (!state || suspended || state.phase === "over") return;
     state.t += dt;
+    var dtMs = dt * 1000;
 
-    // spring-damper lean (whole tower wobble)
-    var target = state.leanImpulse;
-    state.leanImpulse *= Math.pow(0.2, dt); // decay target bias
-    var k = 18, damp = 5.5;
-    var acc = -k * (state.lean - target) - damp * state.leanV;
-    // also bias lean toward COM of recent floors
+    /* Combo drain: bA -= dt + (bz-1)*dt/6 */
+    if (state.comboMeter > 0) {
+      var drain = dtMs + Math.max(0, state.mult - 1) * dtMs / 6;
+      state.comboMeter -= drain;
+      if (state.comboMeter <= 0) {
+        state.comboMeter = 0;
+        bankCombo();
+      }
+      updateHud();
+    }
+
+    /* Spring lean toward bias from stacked offsets */
+    var k = 14, damp = 4.8;
+    var acc = -k * (state.lean - state.leanBias) - damp * state.leanV;
+    /* recent COM */
     var com = 0, mass = 0;
-    for (var i = Math.max(0, state.floors.length - 8); i < state.floors.length; i++) {
+    for (var i = Math.max(0, state.floors.length - 10); i < state.floors.length; i++) {
       var fl = state.floors[i];
-      com += fl.cx * fl.w;
+      com += fl.off * fl.w;
       mass += fl.w;
     }
-    if (mass > 0) acc += (com / mass) * 0.0009;
+    if (mass > 0) acc += (com / mass) * 0.0007;
+    /* gentle wobble amp grows with height (bv-ish) */
+    acc += Math.sin(state.t * 2.4) * Math.min(0.08, state.floorsCount * 0.0025) * 0.4;
     state.leanV += acc * dt;
     state.lean += state.leanV * dt;
-    if (Math.abs(state.lean) > 0.55) state.lean = Math.sign(state.lean) * 0.55;
+    if (Math.abs(state.lean) > 0.6) state.lean = Math.sign(state.lean) * 0.6;
+    state.leanBias *= Math.pow(0.992, dt * 60);
 
-    state.cam += (state.camTarget - state.cam) * Math.min(1, dt * 3.5);
+    state.cam += (state.camTarget - state.cam) * Math.min(1, dt * 3.2);
+    if (state.shake > 0) state.shake = Math.max(0, state.shake - dt);
 
-    // fx
     for (var j = fx.length - 1; j >= 0; j--) {
       var p = fx[j];
       p.life -= dt * 60;
@@ -384,13 +396,13 @@
       } else {
         p.x += p.vx + Math.sin(state.t * 3 + p.swing) * (p.kind === "chute" ? 0.35 : 0.1);
         p.y += p.vy;
-        p.vy += p.kind === "chute" ? 0.04 : 0.18;
+        p.vy += p.kind === "chute" ? 0.035 : 0.18;
       }
-      if (p.life <= 0 || p.y > H + 30) fx.splice(j, 1);
+      if (p.life <= 0 || p.y > H + 40) fx.splice(j, 1);
     }
 
     if (state.phase === "swing") {
-      state.angle += state.angSpeed * state.speed * dt;
+      state.angle += (Math.PI * 2 / state.period) * dt;
     } else if (state.phase === "fall" || state.phase === "miss") {
       var f = state.falling;
       if (!f) return;
@@ -398,8 +410,16 @@
       f.y += f.vy * dt;
       if (state.phase === "miss") {
         f.rot += f.vr;
-        f.x += f.vr * 220 * dt;
-        if (f.y > H + 60) gameOver();
+        f.x += f.vr * 240 * dt;
+        if (f.y > H + 60) {
+          state.falling = null;
+          if (state.lives <= 0) {
+            gameOver("机会用尽");
+          } else {
+            /* peel overhanging top floor if any; resume */
+            spawnHang();
+          }
+        }
         return;
       }
       var landY = worldTopY() - state.cam - BLOCK_H;
@@ -407,23 +427,35 @@
         f.y = landY;
         land();
       }
+    } else if (state.phase === "pause") {
+      if (state.t >= state.pauseUntil) spawnHang();
     } else if (state.phase === "collapsing") {
-      state.leanV += (state.lean >= 0 ? 1 : -1) * 1.2 * dt;
+      state.leanV += (state.lean >= 0 ? 1 : -1) * 1.4 * dt;
       state.lean += state.leanV * dt;
+      if (state.t >= state.pauseUntil) gameOver("大楼倒塌");
     }
   }
 
-  // ---------- draw ----------
   function drawSky() {
     var bands = 16;
     for (var i = 0; i < bands; i++) {
       ctx.fillStyle = i % 2 === 0 ? "#5b8fd4" : "#4a7fc6";
       ctx.fillRect((i / bands) * W, 0, W / bands + 1, H);
     }
+    /* tiny birds */
+    if (state) {
+      ctx.fillStyle = "rgba(20,30,50,0.45)";
+      for (var b = 0; b < 3; b++) {
+        var bx = (state.t * (18 + b * 7) + b * 90) % (W + 40) - 20;
+        var by = 40 + b * 28 + Math.sin(state.t * 2 + b) * 4;
+        ctx.fillRect(bx, by, 3, 1);
+        ctx.fillRect(bx + 2, by - 1, 2, 1);
+      }
+    }
   }
 
   function drawCity() {
-    var ground = H - 40 + Math.min(30, (state ? state.cam : 0) * 0.015);
+    var ground = H - 40 + Math.min(40, (state ? state.cam : 0) * 0.02);
     var sil = [
       [0, 90], [18, 140], [40, 110], [58, 180], [82, 130],
       [105, 210], [128, 150], [150, 260], [175, 170], [198, 230],
@@ -442,35 +474,30 @@
         ctx.fill();
       }
     });
-    // far stripes
     ctx.globalAlpha = 0.35;
     for (var i = 0; i < 10; i++) {
       ctx.fillStyle = "#6f8ec0";
       ctx.fillRect(8 + i * 36, ground - 60 - (i % 3) * 30, 14, 60 + (i % 3) * 30);
     }
     ctx.globalAlpha = 1;
+    ctx.fillStyle = "#2a3a28";
+    ctx.fillRect(0, ground, W, H - ground + 2);
   }
 
-  function drawFloorBlock(x, y, w, h, tiltExtra) {
+  function drawFloorBlock(x, y, w, h) {
     ctx.save();
-    // body
     ctx.fillStyle = "#e8a830";
     roundRect(x, y, w, h, 2);
     ctx.fill();
-    // darker side edge for thickness
     ctx.fillStyle = "#c07818";
     ctx.fillRect(x + w - 5, y + 2, 5, h - 2);
-    // outline
     ctx.strokeStyle = "#2a1808";
     ctx.lineWidth = 2.5;
     roundRect(x + 0.5, y + 0.5, w - 1, h - 1, 2);
     ctx.stroke();
-    // top trim
     ctx.fillStyle = "#f0b840";
     ctx.fillRect(x + 1, y + 1, w - 6, 4);
-    // two windows
-    var gap = 5;
-    var wx = 7;
+    var gap = 5, wx = 7;
     var ww = (w - wx * 2 - gap - 4) / 2;
     var wh = h - 12;
     if (ww > 4 && wh > 6) {
@@ -507,7 +534,6 @@
     ctx.moveTo(W / 2, 0);
     ctx.lineTo(hx, hy);
     ctx.stroke();
-    // hook body
     ctx.fillStyle = "#9aa3ad";
     ctx.strokeStyle = "#333";
     ctx.lineWidth = 1.5;
@@ -518,7 +544,6 @@
     ctx.lineTo(hx - 5, hy + 6);
     ctx.closePath();
     ctx.fill(); ctx.stroke();
-    // hook curve
     ctx.beginPath();
     ctx.arc(hx, hy + 11, 6, -0.2, Math.PI * 0.9);
     ctx.strokeStyle = "#555";
@@ -533,9 +558,9 @@
   function drawTower() {
     var cam = state.cam;
     var lean = state.lean;
-    // pivot near foundation
+    var shakeX = state.shake > 0 ? (Math.random() - 0.5) * 4 * state.shake : 0;
     var baseY = H - 96 - cam;
-    var pivotX = W / 2;
+    var pivotX = W / 2 + shakeX;
     var pivotY = baseY + BLOCK_H * 0.5;
 
     ctx.save();
@@ -558,14 +583,15 @@
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rot);
-        ctx.fillStyle = "#ffd24a";
-        ctx.strokeStyle = "#a06000";
-        ctx.lineWidth = 1;
-        starPath(0, 0, 5, 2.2, 5);
-        ctx.fill(); ctx.stroke();
+        if (imgs.stars && imgs.stars.complete && imgs.stars.naturalWidth) {
+          ctx.drawImage(imgs.stars, 0, 0, 13, 13, -7, -7, 14, 14);
+        } else {
+          ctx.fillStyle = "#ffd24a";
+          starPath(0, 0, 5, 2.2, 5);
+          ctx.fill();
+        }
         ctx.restore();
       } else if (p.kind === "chute") {
-        // parachute
         ctx.fillStyle = "#3b82f6";
         ctx.beginPath();
         ctx.ellipse(p.x, p.y - 8, 8, 5, 0, Math.PI, 0);
@@ -579,10 +605,12 @@
         ctx.fillStyle = "#ef4444";
         ctx.fillRect(p.x - 2, p.y + 2, 4, 6);
       } else {
-        ctx.fillStyle = "#ea580c";
-        ctx.fillRect(p.x - 2, p.y, 4, 7);
-        ctx.fillStyle = "#22c55e";
-        ctx.fillRect(p.x - 2, p.y + 5, 4, 3);
+        if (imgs.jumpers && imgs.jumpers.complete && imgs.jumpers.naturalWidth) {
+          ctx.drawImage(imgs.jumpers, 0, 0, 17, 11, p.x - 8, p.y - 4, 17, 11);
+        } else {
+          ctx.fillStyle = "#ea580c";
+          ctx.fillRect(p.x - 2, p.y, 4, 7);
+        }
       }
     });
   }
@@ -620,7 +648,6 @@
       ctx.restore();
     } else if (state.falling) {
       var f = state.falling;
-      var idle = hookXY();
       drawCrane(W / 2 + Math.sin(state.angle) * 8, PIVOT_Y + CRANE_LEN0, false);
       ctx.save();
       ctx.translate(f.x + f.w / 2, f.y + BLOCK_H / 2);

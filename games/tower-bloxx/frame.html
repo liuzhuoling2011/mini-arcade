@@ -16,20 +16,20 @@
       <div class="star-row">
         <span class="star-ico" aria-hidden="true">★</span>
         <div class="star-bar"><i id="comboFill"></i></div>
-        <span class="mult" id="mult">x1</span>
+        <span class="mult" id="mult"></span>
       </div>
     </div>
     <div class="bottom-hud">
       <div class="bl">
-        <span class="b-ico" aria-hidden="true">🏢</span>
+        <img class="hud-ico" src="assets/build_icon.png" width="22" height="22" alt="" aria-hidden="true">
         <div class="bl-meta">
           <b id="floors">000</b>
-          <div class="seg" id="stabSeg" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="seg" id="stabSeg" title="剩余机会" aria-label="剩余机会"><i></i><i></i><i></i></div>
         </div>
       </div>
       <div class="hint" id="hint">点屏幕 / 空格放下</div>
       <div class="br">
-        <span class="p-ico" aria-hidden="true">👤</span>
+        <img class="hud-ico" src="assets/pop_icon.png" width="22" height="22" alt="" aria-hidden="true">
         <b id="pop">00000</b>
       </div>
     </div>
@@ -39,8 +39,8 @@
 
   <div class="overlay" id="startOverlay">
     <div class="modal">
-      <h2>Tower Bloxx</h2>
-      <p>诺基亚经典盖楼：吊钩摇摆放下楼层。对准则涨人口与倍乘；偏了整塔会晃，晃狠了小人会跳下去。</p>
+      <h2>盖大楼</h2>
+      <p>对齐诺基亚 City Bloxx / Tower Bloxx：吊钩摇摆放下楼层。完美居中填满星条连击；人口随层数与落点质量上涨；偏了整塔会晃，晃狠了或 3 次失手就倒。</p>
       <p class="best">最高人口 <strong id="bestPop">0</strong></p>
       <button type="button" class="btn" id="btnStart">开始盖楼</button>
     </div>
