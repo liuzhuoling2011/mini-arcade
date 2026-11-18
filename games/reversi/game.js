@@ -58,7 +58,7 @@
     board = new Array(64).fill(EMPTY);
     board[idx(3,3)] = WHITE; board[idx(3,4)] = BLACK;
     board[idx(4,3)] = BLACK; board[idx(4,4)] = WHITE;
-    turn = BLACK; over = false; animating = false;
+    turn = BLACK; over = false; animating = false; clearAnims(); setHot(-1);
     render(); updateStatus();
   }
 
@@ -97,16 +97,93 @@
 
   var diskEls = []; // persistent .disk nodes per cell
 
+  var FLIP_MS = 300;
+  var PLACE_MS = 280;
+  var STAGGER_MS = 58;
+  var anims = [];
+  var rafId = 0;
+  var hotCell = -1;
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+  function easeOutBack(t) {
+    var c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  }
+  function faceAngle(color) {
+    return color === BLACK ? 0 : 180;
+  }
+  function setDiskAngle(d, ang, lift, bright) {
+    var extra = "";
+    if (lift) extra += " translateZ(" + lift + "px)";
+    d.style.transform = "rotateY(" + ang + "deg)" + extra;
+    if (bright != null) d.style.filter = "brightness(" + bright + ")";
+    else d.style.filter = "";
+  }
+  function settleDisk(d, color) {
+    d.classList.remove("placed");
+    d.classList.toggle("b", color === BLACK);
+    d.classList.toggle("w", color === WHITE);
+    setDiskAngle(d, faceAngle(color), 0, null);
+    d.style.filter = "";
+  }
+  function tickAnims(now) {
+    rafId = 0;
+    if (!anims.length) return;
+    var still = [];
+    for (var i = 0; i < anims.length; i++) {
+      var a = anims[i];
+      if (a.start == null) a.start = now + (a.delay || 0);
+      var t = (now - a.start) / a.dur;
+      if (t < 0) { still.push(a); continue; }
+      if (t > 1) t = 1;
+      if (a.type === "place") {
+        var e = easeOutBack(t);
+        var y = (1 - e) * -16;
+        var sc = 0.55 + 0.45 * e;
+        a.el.style.opacity = String(Math.min(1, t * 2.2));
+        a.el.style.transform = "rotateY(" + a.ang + "deg) translateY(" + y + "px) scale(" + sc + ")";
+        if (t < 1) still.push(a);
+        else {
+          a.el.style.opacity = "";
+          settleDisk(a.el, a.color);
+        }
+      } else if (a.type === "flip") {
+        var p = easeInOutCubic(t);
+        var ang = a.fromAng + (a.toAng - a.fromAng) * p;
+        var mid = Math.sin(p * Math.PI);
+        var lift = mid * 12;
+        var bright = 0.72 + 0.28 * Math.abs(Math.cos(ang * Math.PI / 180));
+        setDiskAngle(a.el, ang, lift, bright);
+        if (t < 1) still.push(a);
+        else settleDisk(a.el, a.color);
+      }
+    }
+    anims = still;
+    if (anims.length) rafId = requestAnimationFrame(tickAnims);
+  }
+  function kickAnims() {
+    if (!rafId) rafId = requestAnimationFrame(tickAnims);
+  }
+  function clearAnims() {
+    anims = [];
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+  }
+
   function ensureDisk(p) {
     if (diskEls[p]) return diskEls[p];
     var wrap = document.createElement("div");
     wrap.className = "disk-wrap";
     var d = document.createElement("div");
     d.className = "disk b";
+    var rim = document.createElement("div");
+    rim.className = "rim";
     var front = document.createElement("div");
     front.className = "face front";
     var back = document.createElement("div");
     back.className = "face back";
+    d.appendChild(rim);
     d.appendChild(front);
     d.appendChild(back);
     wrap.appendChild(d);
@@ -129,18 +206,18 @@
   }
 
   function render() {
+    clearAnims();
     for (var p = 0; p < 64; p++) {
       if (!board[p]) {
         if (diskEls[p]) {
           diskEls[p].parentNode.style.display = "none";
+          settleDisk(diskEls[p], BLACK);
         }
         continue;
       }
       var d = ensureDisk(p);
       d.parentNode.style.display = "";
-      d.classList.remove("flip-to-w", "flip-to-b", "placed");
-      d.classList.toggle("b", board[p] === BLACK);
-      d.classList.toggle("w", board[p] === WHITE);
+      settleDisk(d, board[p]);
     }
     syncLegalsAndScores();
   }
@@ -213,57 +290,92 @@
     var flips = flipsAt(pos, color);
     if (!flips.length) return;
 
-    // place new disk immediately (no full re-render)
     board[pos] = color;
     var placed = ensureDisk(pos);
     placed.parentNode.style.display = "";
-    placed.classList.remove("flip-to-w", "flip-to-b", "w", "b", "placed");
-    // force reflow once for place anim restart
-    void placed.offsetWidth;
-    placed.classList.add(color === BLACK ? "b" : "w", "placed");
+    placed.style.opacity = "0";
+    settleDisk(placed, color);
+    anims.push({ type: "place", el: placed, color: color, ang: faceAngle(color), delay: 0, dur: PLACE_MS, start: null });
 
     animating = true;
     syncLegalsAndScores();
 
-    // stagger flips on existing disks — mutate classes only
-    var delayStep = flips.length > 8 ? 18 : 28;
-    flips.forEach(function (fp, i) {
-      var from = board[fp]; // still opponent until we flip data
-      // update model now so scores stay correct after anim; visual flips async
-      board[fp] = color;
-      setTimeout(function () {
-        var d = ensureDisk(fp);
-        d.parentNode.style.display = "";
-        d.classList.remove("flip-to-w", "flip-to-b", "placed", "b", "w");
-        // start from previous face
-        d.classList.add(from === BLACK ? "b" : "w");
-        void d.offsetWidth;
-        d.classList.remove("b", "w");
-        d.classList.add(color === BLACK ? "flip-to-b" : "flip-to-w");
-        d.classList.add(color === BLACK ? "b" : "w");
-      }, 40 + i * delayStep);
+    var r0 = (pos / N) | 0, c0 = pos % N;
+    flips = flips.slice().sort(function (a, b) {
+      var da = Math.abs(((a / N) | 0) - r0) + Math.abs((a % N) - c0);
+      var db = Math.abs(((b / N) | 0) - r0) + Math.abs((b % N) - c0);
+      return da - db || a - b;
     });
 
-    var wait = 320 + flips.length * delayStep + 200;
+    var maxEnd = PLACE_MS;
+    flips.forEach(function (fp) {
+      var from = board[fp];
+      board[fp] = color;
+      var d = ensureDisk(fp);
+      d.parentNode.style.display = "";
+      var dist = Math.abs(((fp / N) | 0) - r0) + Math.abs((fp % N) - c0);
+      var delay = 70 + Math.max(0, dist - 1) * STAGGER_MS;
+      var fromAng = faceAngle(from);
+      var toAng = from === BLACK && color === WHITE ? 180
+        : from === WHITE && color === BLACK ? 360
+        : faceAngle(color);
+      setDiskAngle(d, fromAng, 0, null);
+      anims.push({ type: "flip", el: d, color: color, fromAng: fromAng, toAng: toAng, delay: delay, dur: FLIP_MS, start: null });
+      maxEnd = Math.max(maxEnd, delay + FLIP_MS);
+    });
+    kickAnims();
+
     setTimeout(function () {
-      // settle classes without rebuilding DOM
-      flips.forEach(function (fp) {
-        var d = diskEls[fp];
-        if (!d) return;
-        d.classList.remove("flip-to-w", "flip-to-b", "placed");
-        d.classList.toggle("b", board[fp] === BLACK);
-        d.classList.toggle("w", board[fp] === WHITE);
-      });
-      placed.classList.remove("placed");
       animating = false;
       afterMove();
-    }, wait);
+    }, maxEnd + 40);
+  }
+
+  function cellFromEvent(ev) {
+    var x = ev.clientX, y = ev.clientY;
+    if (x == null && ev.changedTouches && ev.changedTouches[0]) {
+      x = ev.changedTouches[0].clientX;
+      y = ev.changedTouches[0].clientY;
+    }
+    if (x == null) return -1;
+    if (document.elementsFromPoint) {
+      var stack = document.elementsFromPoint(x, y);
+      for (var i = 0; i < stack.length; i++) {
+        var node = stack[i];
+        var el = node && node.closest ? node.closest(".cell") : null;
+        if (el && el.dataset && el.dataset.i != null && boardEl.contains(el)) return +el.dataset.i;
+      }
+    }
+    for (var p = 0; p < 64; p++) {
+      var r = cells[p].getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return p;
+    }
+    return -1;
+  }
+
+  function setHot(p) {
+    if (hotCell === p) return;
+    if (hotCell >= 0 && cells[hotCell]) cells[hotCell].classList.remove("hot");
+    hotCell = p;
+    if (hotCell >= 0 && cells[hotCell]) cells[hotCell].classList.add("hot");
+  }
+
+  function canHumanPlay() {
+    if (over || suspended || animating) return false;
+    if (settings.mode === "ai" && turn !== settings.humanSide) return false;
+    return true;
+  }
+
+  function tryPlayAt(ev) {
+    if (!canHumanPlay()) return;
+    var p = cellFromEvent(ev);
+    if (p < 0) return;
+    play(p);
   }
 
   function onClick(ev) {
-    if (over || suspended) return;
-    if (settings.mode === "ai" && turn !== settings.humanSide) return;
-    play(+ev.currentTarget.dataset.i);
+    ev.preventDefault();
+    tryPlayAt(ev);
   }
 
   function evalBoard(b, color) {
@@ -436,6 +548,19 @@
     if (ev.data.action === "suspend") { suspended = true; clearTimeout(aiTimer); }
     else if (ev.data.action === "resume") { suspended = false; scheduleAI(); }
   });
+
+  boardEl.addEventListener("pointerdown", function (ev) {
+    if (ev.pointerType === "mouse" && ev.button !== 0) return;
+    ev.preventDefault();
+    tryPlayAt(ev);
+  });
+  boardEl.addEventListener("pointermove", function (ev) {
+    if (!canHumanPlay()) { setHot(-1); return; }
+    var p = cellFromEvent(ev);
+    if (p >= 0 && cells[p].classList.contains("legal")) setHot(p);
+    else setHot(-1);
+  });
+  boardEl.addEventListener("pointerleave", function () { setHot(-1); });
 
   build(); reset();
 })();

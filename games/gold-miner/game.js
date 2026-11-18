@@ -407,18 +407,149 @@ const SWING = (typeof GM_SWING !== 'undefined' && GM_SWING.length) ? GM_SWING : 
 // ----- State -----
 let mode = 'title';
 let shellHold = false;
-let score = 0, goal = 650, level = 1, levelDis = 1;
+let goal = 650, level = 1, levelDis = 1;
 let timeLeft = 60, stick = 0, minerStrength = BASE_STRENGTH;
 let strengthBoost = 0, strengthFlag = 0;
 let rockBonus = 0, diamondBonus = 0, cloverBonus = 0;
 let goalAddOn = 275;
 let items = [];
-let claw = {
-  swingFrame: 2, angleDeg: 0,
-  state: 'swing', // swing | drop | pull
-  len: LEN_MIN, caught: null, busy: 0,
-  price: 0, weight: 0, stickBonus: 0,
+const MINER_LAYOUTS = {
+  center: { pivot: { x: 275.5, y: 48.6 }, pos: { x: 285.85, y: 34.75 }, flip: false },
+  left:   { pivot: { x: 168.0, y: 48.6 }, pos: { x: 178.0, y: 34.75 }, flip: true },
+  right:  { pivot: { x: 382.0, y: 48.6 }, pos: { x: 392.0, y: 34.75 }, flip: false },
 };
+
+function makeClaw(swingOff) {
+  const c = {
+    swingFrame: 2 + ((swingOff || 0) | 0),
+    angleDeg: 0,
+    state: 'swing', // swing | drop | pull
+    len: LEN_MIN, caught: null, busy: 0,
+    price: 0, weight: 0, stickBonus: 0,
+  };
+  c.angleDeg = SWING[c.swingFrame % SWING.length] || 0;
+  return c;
+}
+
+function makeMiner(layout, swingOff) {
+  const L = MINER_LAYOUTS[layout] || MINER_LAYOUTS.center;
+  return {
+    id: layout,
+    pivot: { x: L.pivot.x, y: L.pivot.y },
+    pos: { x: L.pos.x, y: L.pos.y },
+    flip: !!L.flip,
+    claw: makeClaw(swingOff),
+    minerPose: 'idle',
+    throwTimer: 0,
+    minerAnim: 1,
+    dynToss: null,
+    boomFx: null,
+    pantCool: 0,
+    score: 0,
+    strengthFlag: 0,
+  };
+}
+
+let coop = false;
+try { coop = localStorage.getItem('gm_coop') === '1'; } catch (e) {}
+let miners = [makeMiner('center')];
+
+function totalScore() {
+  let s = 0;
+  for (const m of miners) s += m.score || 0;
+  return s;
+}
+function hookHas(it) {
+  return miners.some(m => m.claw.caught === it);
+}
+function allSwinging() {
+  return miners.every(m => m.claw.state === 'swing');
+}
+function anyHeavyPull() {
+  return miners.some(m => m.claw.state === 'pull' && m.claw.caught && !m.claw.stickBonus && !m.strengthFlag && (m.claw.weight || 0) > 1);
+}
+function setupMiners(keepScores) {
+  const prev = keepScores ? miners.map(m => m.score) : [];
+  if (coop) {
+    miners = [makeMiner('left', 2 + ((Math.random() * 80) | 0)), makeMiner('right', 40 + ((Math.random() * 80) | 0))];
+  } else {
+    miners = [makeMiner('center', 2 + ((Math.random() * 80) | 0))];
+  }
+  if (keepScores) {
+    for (let i = 0; i < miners.length; i++) miners[i].score = prev[i] || (prev.length === 1 && i === 0 ? prev[0] : 0);
+    // If switching into coop mid-run (shouldn't), left keeps the old score.
+    if (prev.length === 1 && miners.length === 2) {
+      miners[0].score = prev[0];
+      miners[1].score = 0;
+    }
+  }
+}
+function spendMoney(n) {
+  if (totalScore() < n) return false;
+  if (miners.length === 1) {
+    miners[0].score -= n;
+    return true;
+  }
+  const tot = totalScore();
+  const takes = miners.map(m => Math.min(m.score, Math.floor(n * m.score / tot)));
+  let paid = takes.reduce((a, b) => a + b, 0);
+  let left = n - paid;
+  const order = miners.map((_, i) => i).sort((a, b) => (miners[b].score - takes[b]) - (miners[a].score - takes[a]));
+  for (const i of order) {
+    if (!left) break;
+    const room = miners[i].score - takes[i];
+    const add = Math.min(room, left);
+    takes[i] += add;
+    left -= add;
+  }
+  miners.forEach((m, i) => { m.score -= takes[i]; });
+  return true;
+}
+
+const KEY_DEFAULTS = {
+  leftHook: 'KeyA',
+  leftBomb: 'KeyS',
+  rightHook: 'ArrowDown',
+  rightBomb: 'ArrowRight',
+};
+let keyBinds = Object.assign({}, KEY_DEFAULTS);
+try {
+  const raw = localStorage.getItem('gm_coop_keys');
+  if (raw) {
+    const o = JSON.parse(raw);
+    for (const k of Object.keys(KEY_DEFAULTS)) if (typeof o[k] === 'string') keyBinds[k] = o[k];
+  }
+} catch (e) {}
+function saveKeyBinds() {
+  try { localStorage.setItem('gm_coop_keys', JSON.stringify(keyBinds)); } catch (e) {}
+}
+function keyLabel(code) {
+  const map = {
+    ArrowDown: '↓', ArrowUp: '↑', ArrowLeft: '←', ArrowRight: '→',
+    Space: '空格', Enter: 'Enter', ShiftLeft: 'LShift', ShiftRight: 'RShift',
+    ControlLeft: 'LCtrl', ControlRight: 'RCtrl', AltLeft: 'LAlt', AltRight: 'RAlt',
+    Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']',
+    Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\',
+    Backquote: '`',
+  };
+  if (map[code]) return map[code];
+  if (code && code.startsWith('Key')) return code.slice(3);
+  if (code && code.startsWith('Digit')) return code.slice(5);
+  return code || '?';
+}
+
+let keyUiOpen = false;
+let rebindTarget = null; // 'leftHook' | ...
+const KEY_SLOTS = [
+  { id: 'leftHook', side: '左矿工', act: '放钩' },
+  { id: 'leftBomb', side: '左矿工', act: '炸药' },
+  { id: 'rightHook', side: '右矿工', act: '放钩' },
+  { id: 'rightBomb', side: '右矿工', act: '炸药' },
+];
+
+let claw = null; // alias, refreshed to miners[0].claw for debug/1P shims
+function syncClawAlias() { claw = miners[0] ? miners[0].claw : null; }
+syncClawAlias();
 let floatTexts = [];
 let shopItems = [];
 let shopSel = -1;
@@ -431,9 +562,14 @@ let logicAcc = 0;
 let isTouch = matchMedia('(pointer:coarse)').matches || (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
 // Phone/tablet virtual pads — HTML overlay in letterbox (bottom-right), NOT on 550×400 playfield
 const padsEl = document.getElementById('pads');
+const padsL = document.getElementById('padsL');
+const padsR = document.getElementById('padsR');
 const btnDrop = document.getElementById('btnDrop');
 const btnDyn = document.getElementById('btnDyn');
 const dynCountEl = document.getElementById('dynCount');
+const btnDropL = document.getElementById('btnDropL');
+const btnDynL = document.getElementById('btnDynL');
+const dynCountL = document.getElementById('dynCountL');
 let padsEnabled = false;
 let hintAlpha = 1;
 
@@ -446,7 +582,19 @@ function detectTouchUI() {
   layoutPads();
 }
 function safeInset() { return 10; }
-/** Place dual pads in empty margin right/bottom of letterboxed canvas (portrait & landscape). */
+function placePadCol(el, left, top, btn, gap) {
+  if (!el) return;
+  el.style.left = Math.round(left) + 'px';
+  el.style.top = Math.round(top) + 'px';
+  el.style.gap = gap + 'px';
+  el.querySelectorAll('button').forEach(b => {
+    b.style.width = btn + 'px';
+    b.style.height = btn + 'px';
+    b.style.fontSize = Math.round(btn * 0.20) + 'px';
+  });
+}
+
+/** Place pads in empty margin of letterboxed canvas (portrait & landscape). */
 function layoutPads() {
   if (!padsReady || !padsEl) return;
   if (!padsEnabled) {
@@ -466,41 +614,59 @@ function layoutPads() {
   const gapBelow = vh - sr.bottom;
   const gapRight = vw - sr.right;
   const gapLeft = sr.left;
-  let left, top;
 
-  if (gapBelow >= stackH + safe + 4) {
-    // Portrait / tall: bottom letterbox, right side
-    left = Math.min(vw - stackW - safe, Math.max(safe, sr.right - stackW));
-    top = vh - stackH - safe;
-    if (top < sr.bottom + 2) top = sr.bottom + 2;
-  } else if (gapRight >= stackW + safe + 4) {
-    // Landscape: right letterbox, lower end
-    left = Math.min(vw - stackW - safe, sr.right + 8);
-    top = Math.min(vh - stackH - safe, Math.max(sr.top + 8, sr.bottom - stackH - 4));
-  } else if (gapLeft >= stackW + safe + 4 && gapLeft > gapRight) {
-    // More room on left — still prefer bottom-right of viewport if possible
-    left = Math.min(vw - stackW - safe, sr.right + 4);
-    top = Math.min(vh - stackH - safe, Math.max(sr.top + 8, sr.bottom - stackH - 4));
-    if (left + stackW > vw - 4 || left < sr.right - 4) {
-      left = Math.max(safe, sr.left - stackW - 8);
-      top = Math.min(vh - stackH - safe, Math.max(sr.top + 8, sr.bottom - stackH - 4));
-    }
-  } else {
-    // No usable letterbox — hide rather than cover the 550×400 playfield
+  function hideAll() {
     padsEl.classList.remove('on');
     padsEl.setAttribute('aria-hidden', 'true');
-    return;
   }
 
-  padsEl.style.left = Math.round(left) + 'px';
-  padsEl.style.top = Math.round(top) + 'px';
-  padsEl.style.width = stackW + 'px';
-  padsEl.style.gap = gap + 'px';
-  for (const b of [btnDrop, btnDyn]) {
-    if (!b) continue;
-    b.style.width = btn + 'px';
-    b.style.height = btn + 'px';
-    b.style.fontSize = Math.round(btn * 0.22) + 'px';
+  if (coop) {
+    let lLeft, rLeft, top, ok = false;
+    if (gapBelow >= stackH + safe + 4) {
+      top = vh - stackH - safe;
+      if (top < sr.bottom + 2) top = sr.bottom + 2;
+      lLeft = Math.max(safe, sr.left);
+      rLeft = Math.min(vw - stackW - safe, sr.right - stackW);
+      ok = rLeft >= lLeft + stackW + 8;
+    }
+    if (!ok && gapLeft >= stackW + safe + 4 && gapRight >= stackW + safe + 4) {
+      lLeft = Math.max(safe, sr.left - stackW - 8);
+      rLeft = Math.min(vw - stackW - safe, sr.right + 8);
+      top = Math.min(vh - stackH - safe, Math.max(sr.top + 8, sr.bottom - stackH - 4));
+      ok = true;
+    }
+    if (!ok && gapBelow >= stackH + safe + 4) {
+      top = vh - stackH - safe;
+      lLeft = Math.max(safe, sr.left);
+      rLeft = Math.min(vw - stackW - safe, sr.right - stackW);
+      ok = true;
+    }
+    if (!ok) { hideAll(); return; }
+    if (padsL) padsL.hidden = false;
+    placePadCol(padsL, lLeft, top, btn, gap);
+    placePadCol(padsR, rLeft, top, btn, gap);
+  } else {
+    let left, top;
+    if (padsL) padsL.hidden = true;
+    if (gapBelow >= stackH + safe + 4) {
+      left = Math.min(vw - stackW - safe, Math.max(safe, sr.right - stackW));
+      top = vh - stackH - safe;
+      if (top < sr.bottom + 2) top = sr.bottom + 2;
+    } else if (gapRight >= stackW + safe + 4) {
+      left = Math.min(vw - stackW - safe, sr.right + 8);
+      top = Math.min(vh - stackH - safe, Math.max(sr.top + 8, sr.bottom - stackH - 4));
+    } else if (gapLeft >= stackW + safe + 4 && gapLeft > gapRight) {
+      left = Math.min(vw - stackW - safe, sr.right + 4);
+      top = Math.min(vh - stackH - safe, Math.max(sr.top + 8, sr.bottom - stackH - 4));
+      if (left + stackW > vw - 4 || left < sr.right - 4) {
+        left = Math.max(safe, sr.left - stackW - 8);
+        top = Math.min(vh - stackH - safe, Math.max(sr.top + 8, sr.bottom - stackH - 4));
+      }
+    } else {
+      hideAll();
+      return;
+    }
+    placePadCol(padsR, left, top, btn, gap);
   }
   syncPadsVisibility();
 }
@@ -509,15 +675,38 @@ function syncPadsVisibility() {
   const show = padsEnabled && mode === 'play';
   padsEl.classList.toggle('on', show);
   padsEl.setAttribute('aria-hidden', show ? 'false' : 'true');
+  if (padsL) padsL.hidden = !show || !coop;
   refreshPadState();
 }
+function armPad(dropBtn, dynBtn, m, countEl, coopSide) {
+  if (!dropBtn || !dynBtn) return;
+  const swinging = mode === 'play' && m && m.claw.state === 'swing';
+  const canBomb = mode === 'play' && stick > 0 && m && m.claw.state === 'pull' && m.claw.caught;
+  dropBtn.classList.toggle('armed', !!swinging);
+  dynBtn.classList.toggle('armed', !!canBomb);
+  dynBtn.disabled = stick <= 0;
+  if (countEl) countEl.textContent = String(stick);
+  const dropLab = dropBtn.querySelector('span:not(.sub)') || dropBtn;
+  const dynLab = dynBtn.querySelector('span:not(.sub)');
+  if (coopSide === 'L') {
+    if (dropLab) dropLab.textContent = '左钩';
+    if (dynLab) dynLab.textContent = '左炸药';
+  } else if (coopSide === 'R') {
+    if (dropLab) dropLab.textContent = '右钩';
+    if (dynLab) dynLab.textContent = '右炸药';
+  } else {
+    if (dropLab) dropLab.textContent = '放钩';
+    if (dynLab) dynLab.textContent = '炸药';
+  }
+}
 function refreshPadState() {
-  if (!padsReady || !btnDrop || !btnDyn) return;
-  const swinging = mode === 'play' && claw && claw.state === 'swing';
-  btnDrop.classList.toggle('armed', !!swinging);
-  btnDyn.classList.toggle('armed', stick > 0);
-  btnDyn.disabled = stick <= 0;
-  if (dynCountEl) dynCountEl.textContent = String(stick);
+  if (!padsReady) return;
+  if (coop && miners.length > 1) {
+    armPad(btnDropL, btnDynL, miners[0], dynCountL, 'L');
+    armPad(btnDrop, btnDyn, miners[1], dynCountEl, 'R');
+  } else {
+    armPad(btnDrop, btnDyn, miners[0], dynCountEl, null);
+  }
 }
 padsReady = true;
 detectTouchUI();
@@ -533,7 +722,9 @@ let minerAnim = 1;      // sprite 238 frame 1..37
 let pantCool = 0;
 
 function resetRun() {
-  score = 0; level = 1; levelDis = 1;
+  setupMiners(false);
+  syncClawAlias();
+  level = 1; levelDis = 1;
   timeLeft = 60; stick = 0;
   minerStrength = BASE_STRENGTH;
   strengthBoost = 0; strengthFlag = 0;
@@ -598,12 +789,8 @@ function startLevel() {
   syncPadsVisibility();
   timeLeft = 60;
   strengthFlag = 0;
-  claw = {
-    swingFrame: 2 + ((Math.random() * 80) | 0),
-    angleDeg: 0, state: 'swing', len: LEN_MIN,
-    caught: null, busy: 0, price: 0, weight: 0, stickBonus: 0,
-  };
-  claw.angleDeg = SWING[claw.swingFrame % SWING.length] || 0;
+  setupMiners(true);
+  syncClawAlias();
   floatTexts = [];
   boomFx = null;
   dynToss = null;
@@ -762,12 +949,13 @@ function clawOverlap(it, tip, angleDeg, stopAtFirst) {
   return n;
 }
 /** First item touched by the open claw at (len, angle); closest to the hinge wins ties. */
-function clawHitAt(len, angleDeg) {
+function clawHitAt(m, len, angleDeg) {
   const rad = angleDeg * Math.PI / 180;
-  const tip = { x: PIVOT.x - Math.sin(rad) * len, y: PIVOT.y + Math.cos(rad) * len };
+  const pv = m.pivot;
+  const tip = { x: pv.x - Math.sin(rad) * len, y: pv.y + Math.cos(rad) * len };
   let best = null, bestD = Infinity;
   for (const it of items) {
-    if (!it.alive || claw.caught === it) continue;
+    if (!it.alive || hookHas(it)) continue;
     if (clawOverlap(it, tip, angleDeg, true)) {
       const d = (it.x - tip.x) * (it.x - tip.x) + (it.y - tip.y) * (it.y - tip.y);
       if (d < bestD) { bestD = d; best = it; }
@@ -789,110 +977,116 @@ function drawHitShapes() {
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   for (const it of items) {
-    if (!it.alive || claw.caught === it) continue;
+    if (!it.alive || hookHas(it)) continue;
     const { m, ox, oy } = itemHitMask(it);
     if (!m.ov) m.ov = overlayCanvas(m, [0, 255, 255, 120]);
     ctx.drawImage(m.ov, m.x0 + ox, m.y0 + oy, m.w / HIT_RES, m.h / HIT_RES);
   }
-  if (!claw.caught) {
+  for (const miner of miners) {
+    if (miner.claw.caught) continue;
     const ch = getClawHit();
     if (!ch.ov) ch.ov = overlayCanvas(ch.m, [255, 0, 80, 170]);
-    const tip = clawTip();
+    const tip = clawTip(miner);
+    ctx.save();
     ctx.translate(tip.x, tip.y);
-    ctx.rotate(claw.angleDeg * Math.PI / 180);
+    ctx.rotate(miner.claw.angleDeg * Math.PI / 180);
     ctx.drawImage(ch.ov, ch.m.x0, ch.m.y0, ch.m.w / HIT_RES, ch.m.h / HIT_RES);
+    ctx.restore();
   }
   ctx.restore();
 }
 
-function clawTip() {
+function clawTip(m) {
   // Flash _rotation: +deg = clockwise. With Y-down, local +Y maps to (-sin, +cos).
   // Tip must use the same mapping so the rope ends where the claw hinge faces.
-  const rad = claw.angleDeg * Math.PI / 180;
+  const rad = m.claw.angleDeg * Math.PI / 180;
   return {
-    x: PIVOT.x - Math.sin(rad) * claw.len,
-    y: PIVOT.y + Math.cos(rad) * claw.len,
+    x: m.pivot.x - Math.sin(rad) * m.claw.len,
+    y: m.pivot.y + Math.cos(rad) * m.claw.len,
   };
 }
 
-function dropClaw() {
-  if (mode !== 'play' || claw.state !== 'swing') return;
-  claw.state = 'drop';
-  claw.busy = 0;
-  minerPose = 'down';
+function dropClaw(m) {
+  m = m || miners[0];
+  if (mode !== 'play' || !m || m.claw.state !== 'swing') return;
+  m.claw.state = 'drop';
+  m.claw.busy = 0;
+  m.minerPose = 'down';
   playSfx('drop', 0.45); // one-shot; no mid-drop retrigger (was stacking)
   hintAlpha = 0;
 }
 
-function useDynamite() {
-  if (mode !== 'play' || stick < 1) return;
-  if (claw.state !== 'pull' || !claw.caught) return;
-  if (dynToss) return; // one toss at a time
+function useDynamite(m) {
+  m = m || miners[0];
+  if (mode !== 'play' || !m || stick < 1) return;
+  if (m.claw.state !== 'pull' || !m.claw.caught) return;
+  if (m.dynToss) return; // one toss at a time per miner
   stick--;
-  stopPant();
+  if (!anyHeavyPull()) stopPant();
   // SWF: miner.m.gotoAndPlay("throw") → frames 31–33; boom waits until stick hits claw
-  minerPose = 'throw';
-  minerAnim = 31;
-  throwTimer = 3 / FPS; // visual fallback for throw1/2/3 (~frames 31–33 @18fps)
-  dynToss = {
+  m.minerPose = 'throw';
+  m.minerAnim = 31;
+  m.throwTimer = 3 / FPS; // visual fallback for throw1/2/3 (~frames 31–33 @18fps)
+  m.dynToss = {
     phase: 'throw', // then 'fly' after frame 34 trigger
     frame: 31,      // DefineSprite_238
-    x: PIVOT.x,
-    y: PIVOT.y + 8,
+    x: m.pivot.x,
+    y: m.pivot.y + 8,
   };
   playSfx('throw', 0.5);
   // boom / destroy deferred to detonateDynamite() when stick reaches claw
 }
 
-function detonateDynamite() {
-  const tip = clawTip();
-  boomFx = { x: tip.x, y: tip.y, life: 0.45 };
-  if (claw.caught) {
-    claw.caught.alive = false;
-    claw.caught = null;
+function detonateDynamite(m) {
+  const tip = clawTip(m);
+  m.boomFx = { x: tip.x, y: tip.y, life: 0.45 };
+  if (m.claw.caught) {
+    m.claw.caught.alive = false;
+    m.claw.caught = null;
   }
-  claw.price = 0;
-  claw.weight = 0;
-  claw.stickBonus = 1;
-  dynToss = null;
-  throwTimer = 0;
-  if (claw.state === 'pull') {
-    minerPose = 'up';
-    minerAnim = 1;
+  m.claw.price = 0;
+  m.claw.weight = 0;
+  m.claw.stickBonus = 1;
+  m.dynToss = null;
+  m.throwTimer = 0;
+  if (m.claw.state === 'pull') {
+    m.minerPose = 'up';
+    m.minerAnim = 1;
   }
   playSfx('boom', 0.7);
   // If rope already reeled in during flight, finish empty pull now
-  if (claw.state === 'pull' && claw.len <= LEN_MIN) {
-    finishPull();
-    if (timeLeft <= 0) endLevel();
+  if (m.claw.state === 'pull' && m.claw.len <= LEN_MIN) {
+    finishPull(m);
+    if (timeLeft <= 0 && allSwinging()) endLevel();
   }
 }
 
-function advanceDynamiteToss() {
-  if (!dynToss) return;
-  const tip = clawTip();
+function advanceDynamiteToss(m) {
+  if (!m.dynToss) return;
+  const tip = clawTip(m);
+  const dynToss = m.dynToss;
   if (dynToss.phase === 'throw') {
     // Sprite 238: 31,32,33 = throw poses; 34 starts stick flight; 35 → pull loop
     dynToss.frame++;
-    minerAnim = dynToss.frame;
+    m.minerAnim = dynToss.frame;
     if (dynToss.frame === 34) {
       dynToss.phase = 'fly';
-      dynToss.x = PIVOT.x;
-      dynToss.y = PIVOT.y + 10;
+      dynToss.x = m.pivot.x;
+      dynToss.y = m.pivot.y + 10;
       // SWF frame_34: _root.C.cl.d.gotoAndStop(2)
     } else if (dynToss.frame >= 35) {
       // SWF frame_35: gotoAndPlay(1) — back to pull while stick still flies
-      minerPose = 'pull';
-      minerAnim = 1;
-      throwTimer = 0;
+      m.minerPose = 'pull';
+      m.minerAnim = 1;
+      m.throwTimer = 0;
     }
     return;
   }
   // During fly, miner already on pull loop (after frame 35)
-  if (minerPose === 'throw') {
-    minerPose = 'pull';
-    minerAnim = 1;
-    throwTimer = 0;
+  if (m.minerPose === 'throw') {
+    m.minerPose = 'pull';
+    m.minerAnim = 1;
+    m.throwTimer = 0;
   }
   // DefineSprite_255/250: lerp 50% toward claw each enterFrame, boom on hitTest
   dynToss.x += (tip.x - dynToss.x) * 0.5;
@@ -901,24 +1095,24 @@ function advanceDynamiteToss() {
   const dy = dynToss.y - tip.y;
   // hit when near tip (SWF hitTest claw.box ≈ tip AABB)
   if (dx * dx + dy * dy <= (TIP_HALF * 2.5) * (TIP_HALF * 2.5)) {
-    detonateDynamite();
+    detonateDynamite(m);
   }
 }
 
-function grabItem(it) {
-  claw.busy = 1;
-  claw.state = 'pull';
-  claw.caught = it;
-  claw.price = it.price;
-  claw.weight = it.weight;
-  claw.stickBonus = (it.weight === -1) ? 1 : 0;
-  if (it.weight === -1) claw.weight = 0;
+function grabItem(m, it) {
+  m.claw.busy = 1;
+  m.claw.state = 'pull';
+  m.claw.caught = it;
+  m.claw.price = it.price;
+  m.claw.weight = it.weight;
+  m.claw.stickBonus = (it.weight === -1) ? 1 : 0;
+  if (it.weight === -1) m.claw.weight = 0;
   it.alive = false;
-  minerPose = 'pull';
-  minerAnim = 1;
-  throwTimer = 0; // never inherit throw pose from a prior dynamite toss
-  dynToss = null;
-  stopPant();
+  m.minerPose = 'pull';
+  m.minerAnim = 1;
+  m.throwTimer = 0; // never inherit throw pose from a prior dynamite toss
+  m.dynToss = null;
+  if (!anyHeavyPull()) stopPant();
   playSfx('hit', 0.5);
   playSfx('grab', 0.35);
   // SWF 281 hitTest → T.gotoAndStop(2): TNT bursts where it stood; claw keeps debris (grab_9, $1, w2)
@@ -942,7 +1136,7 @@ function advanceExplosions() {
       const bx = ex.x + TNT_BLAST.ox * ex.sx, by = ex.y + TNT_BLAST.oy * ex.sy;
       const bhx = TNT_BLAST.hx * ax, bhy = TNT_BLAST.hy * ay;
       for (const it of items) {
-        if (!it.alive || it === claw.caught) continue;
+        if (!it.alive || hookHas(it)) continue;
         // item .ob.box AABB in stage px (ITEM_BOX × ob clip scale)
         const ob = it.obScale || OB_SCALE;
         const cx = it.x + (it.boxOx || 0) * ob, cy = it.y + (it.boxOy || 0) * ob;
@@ -965,26 +1159,26 @@ function advanceExplosions() {
   }
 }
 
-function finishPull() {
-  stopPant();
-  const price = claw.price;
-  claw.state = 'swing';
-  claw.len = LEN_MIN;
-  claw.caught = null;
-  claw.busy = 0;
-  claw.stickBonus = 0;
-  minerPose = 'idle';
+function finishPull(m) {
+  if (!anyHeavyPull()) stopPant();
+  const price = m.claw.price;
+  m.claw.state = 'swing';
+  m.claw.len = LEN_MIN;
+  m.claw.caught = null;
+  m.claw.busy = 0;
+  m.claw.stickBonus = 0;
+  m.minerPose = 'idle';
   if (price === 'power') {
-    strengthFlag = 1;
-    floatTexts.push({ x: PIVOT.x, y: PIVOT.y + 36, t: '力气↑', life: 1.2 });
+    m.strengthFlag = 1;
+    floatTexts.push({ x: m.pivot.x, y: m.pivot.y + 36, t: '力气↑', life: 1.2 });
     playSfx('score');
   } else if (price === 'dynamite') {
     stick++;
-    floatTexts.push({ x: PIVOT.x, y: PIVOT.y + 36, t: '炸药+1', life: 1.2 });
+    floatTexts.push({ x: m.pivot.x, y: m.pivot.y + 36, t: '炸药+1', life: 1.2 });
     playSfx('score');
   } else if (typeof price === 'number' && price > 0) {
-    score += price;
-    floatTexts.push({ x: PIVOT.x, y: PIVOT.y + 36, t: '$' + price, life: 1.2 });
+    m.score += price;
+    floatTexts.push({ x: m.pivot.x, y: m.pivot.y + 36, t: '$' + price, life: 1.2 });
     playSfx('money');
     playSfx('score', 0.4);
   } else {
@@ -993,11 +1187,12 @@ function finishPull() {
 }
 
 function endLevel() {
+  for (const m of miners) m.strengthFlag = 0;
   strengthFlag = 0;
   rockBonus = 0; diamondBonus = 0; cloverBonus = 0;
   strengthBoost = 0;
   minerStrength = BASE_STRENGTH;
-  resultOk = score >= goal;
+  resultOk = totalScore() >= goal;
   mode = 'result';
   syncPadsVisibility();
   playSfx(resultOk ? 'win' : 'tick');
@@ -1010,23 +1205,23 @@ function buildShop() {
   shopExitTimer = 0;
   if (stick < 5) {
     const price = (Math.random() * 300 | 0) + 1 + level * 2;
-    shopItems.push({ id: 'dyn', name: '炸药', desc: '抓到重物时可按↑炸掉，节省时间。', price, buy() { stick++; } });
+    shopItems.push({ id: 'dyn', name: '炸药', desc: '抓到重物时可炸掉，节省时间。' + (coop ? '两名矿工共用。' : ''), price, buy() { stick++; } });
   }
   if ((Math.random() * 10 | 0) + 1 < 5) {
     const price = (Math.random() * (level * 50) | 0) + 1 + level * 2;
-    shopItems.push({ id: 'str', name: '生力水', desc: '下一关力气+2，拉得更快。', price, buy() { strengthBoost = 2; } });
+    shopItems.push({ id: 'str', name: '生力水', desc: '下一关力气+2，拉得更快。' + (coop ? '两名矿工都生效。' : ''), price, buy() { strengthBoost = 2; } });
   }
   if ((Math.random() * 10 | 0) + 1 < 6) {
     const price = (Math.random() * (level * 100) | 0) + 1 + 200;
-    shopItems.push({ id: 'clover', name: '幸运草', desc: '下一关从色袋中更容易开到好东西。', price, buy() { cloverBonus = 1; } });
+    shopItems.push({ id: 'clover', name: '幸运草', desc: '下一关从色袋中更容易开到好东西。' + (coop ? '两名矿工都生效。' : ''), price, buy() { cloverBonus = 1; } });
   }
   if ((Math.random() * 10 | 0) + 1 < 5) {
     const price = (Math.random() * 300 | 0) + 100;
-    shopItems.push({ id: 'rock', name: '石头收藏书', desc: '下一关石头更值钱。', price, buy() { rockBonus = 1; } });
+    shopItems.push({ id: 'rock', name: '石头收藏书', desc: '下一关石头更值钱。' + (coop ? '两名矿工都生效。' : ''), price, buy() { rockBonus = 1; } });
   }
   if ((Math.random() * 10 | 0) + 1 >= 7) {
     const price = (Math.random() * 150 | 0) + 1;
-    shopItems.push({ id: 'dia', name: '优质钻石', desc: '下一关钻石相当值钱。', price, buy() { diamondBonus = 1; } });
+    shopItems.push({ id: 'dia', name: '优质钻石', desc: '下一关钻石相当值钱。' + (coop ? '两名矿工都生效。' : ''), price, buy() { diamondBonus = 1; } });
   }
   shopItems.sort(() => Math.random() - 0.5);
   shopItems = shopItems.slice(0, 4);
@@ -1053,35 +1248,20 @@ function nextLevel() {
 }
 
 // ----- Fixed 18fps logic step (matches SWF timeline) -----
-function logicStep() {
-  const dt = 1 / FPS;
-  if (mode !== 'play') {
-    if (throwTimer > 0) throwTimer -= dt;
-    if (boomFx) { boomFx.life -= dt; if (boomFx.life <= 0) boomFx = null; }
-    return;
-  }
-
-  if (throwTimer > 0) {
-    throwTimer -= dt;
+function stepMiner(m, dt) {
+  const claw = m.claw;
+  if (m.throwTimer > 0) {
+    m.throwTimer -= dt;
     // do not force pose here while dynToss owns throw→fly timing
-    if (throwTimer <= 0 && !dynToss && claw.state === 'pull' && minerPose === 'throw') minerPose = 'up';
+    if (m.throwTimer <= 0 && !m.dynToss && claw.state === 'pull' && m.minerPose === 'throw') m.minerPose = 'up';
   }
-  if (boomFx) { boomFx.life -= dt; if (boomFx.life <= 0) boomFx = null; }
-  advanceDynamiteToss();
-  for (const it of items) if (it.alive && it.walker) advanceMouse(it);
-  advanceExplosions();
-
-  // timer ~1s per SWF sprite 188 tick
-  timeLeft -= dt;
-  if (timeLeft <= 0) {
-    timeLeft = 0;
-    if (claw.state === 'swing') endLevel();
-  }
+  if (m.boomFx) { m.boomFx.life -= dt; if (m.boomFx.life <= 0) m.boomFx = null; }
+  advanceDynamiteToss(m);
 
   if (claw.state === 'swing') {
     claw.swingFrame = (claw.swingFrame + 1) % SWING.length;
     claw.angleDeg = SWING[claw.swingFrame];
-    minerPose = 'idle';
+    m.minerPose = 'idle';
   } else if (claw.state === 'drop') {
     // Sub-step ≤1 px along the rope so thin edges can't be tunnelled through.
     const from = claw.len, to = claw.len + DROP_PX_PER_FRAME;
@@ -1091,30 +1271,30 @@ function logicStep() {
       const L = from + (to - from) * k / steps;
       if (L >= LEN_MAX) break;
       const rr = claw.angleDeg * Math.PI / 180;
-      const ty = PIVOT.y + Math.cos(rr) * L, tx = PIVOT.x - Math.sin(rr) * L;
+      const ty = m.pivot.y + Math.cos(rr) * L, tx = m.pivot.x - Math.sin(rr) * L;
       if (ty > H - 6 || tx < 6 || tx > W - 6) break;
-      hit = clawHitAt(L, claw.angleDeg);
+      hit = clawHitAt(m, L, claw.angleDeg);
       if (hit) claw.len = L;
     }
     if (!hit) claw.len = to;
-    const tip = clawTip();
+    const tip = clawTip(m);
     if (hit) {
-      grabItem(hit);
+      grabItem(m, hit);
     } else if (tip.y > H - 6 || tip.x < 6 || tip.x > W - 6 || claw.len >= LEN_MAX) {
       claw.state = 'pull';
       claw.caught = null;
       claw.price = 0;
       claw.weight = 0;
       claw.stickBonus = 1; // empty return is fast (SWF stickBonus path)
-      minerPose = 'up';
+      m.minerPose = 'up';
     }
   } else if (claw.state === 'pull') {
     let step;
-    if (claw.stickBonus || strengthFlag) step = 15;
+    if (claw.stickBonus || m.strengthFlag) step = 15;
     else step = Math.max(1, effectiveStrength() - (claw.weight || 0));
     claw.len -= step * PULL_PX_PER_FRAME;
     if (claw.caught) {
-      const tip = clawTip();
+      const tip = clawTip(m);
       const meta = GRAB_LOGICAL[claw.caught.object];
       claw.caught.x = tip.x;
       // Approx item center under grab composite (below hinge)
@@ -1122,38 +1302,61 @@ function logicStep() {
     }
     // SWF miner.gotoAndStop("up") → sprite 238 frames 1–20 loop (frame_20 → 1).
     // Frames 31–33 are the "throw" label (dynamite); never play them while pulling.
-    if (minerPose !== 'throw') {
-      minerPose = 'pull';
-      minerAnim = (minerAnim % PULL_FRAME_MAX) + 1;
+    if (m.minerPose !== 'throw') {
+      m.minerPose = 'pull';
+      m.minerAnim = (m.minerAnim % PULL_FRAME_MAX) + 1;
     }
     // Heavy pull (weight>1 and not fast path): pant like original effort
-    const heavy = claw.caught && !claw.stickBonus && !strengthFlag && (claw.weight || 0) > 1;
+    const heavy = claw.caught && !claw.stickBonus && !m.strengthFlag && (claw.weight || 0) > 1;
     if (heavy) {
-      pantCool -= dt;
-      if (pantCool <= 0) {
+      m.pantCool -= dt;
+      if (m.pantCool <= 0) {
         playSfx('pant', 0.42); // exclusive + debounced; restarts cleanly
         const pd = audioBuffers.pant ? audioBuffers.pant.duration : 0.71;
-        pantCool = pd + 0.04; // no overlap with previous pant
+        m.pantCool = pd + 0.04; // no overlap with previous pant
       }
-    } else {
+    } else if (!anyHeavyPull()) {
       stopPant();
     }
     if (claw.len <= LEN_MIN) {
       claw.len = LEN_MIN;
       // Wait for in-flight dynamite so item does not score before boom
-      if (dynToss && claw.caught) {
+      if (m.dynToss && claw.caught) {
         /* hold at top until detonateDynamite */
       } else {
-        finishPull(); // stopPant inside
-        if (timeLeft <= 0) endLevel();
+        finishPull(m); // stopPant inside
+        if (timeLeft <= 0 && allSwinging()) endLevel();
       }
     }
   }
+}
+
+function logicStep() {
+  const dt = 1 / FPS;
+  if (mode !== 'play') {
+    for (const m of miners) {
+      if (m.throwTimer > 0) m.throwTimer -= dt;
+      if (m.boomFx) { m.boomFx.life -= dt; if (m.boomFx.life <= 0) m.boomFx = null; }
+    }
+    return;
+  }
+
+  for (const it of items) if (it.alive && it.walker) advanceMouse(it);
+  advanceExplosions();
+
+  // timer ~1s per SWF sprite 188 tick
+  timeLeft -= dt;
+  if (timeLeft <= 0) {
+    timeLeft = 0;
+    if (allSwinging()) endLevel();
+  }
+
+  for (const m of miners) stepMiner(m, dt);
   hintAlpha = Math.max(0, hintAlpha - dt * 0.25);
 }
 
 function update(dt) {
-  if (shellHold || debugOpen) return; // modal pauses the game
+  if (shellHold || debugOpen || keyUiOpen) return; // modal pauses the game
   if (mode === 'shop' && shopExitTimer > 0) {
     shopExitTimer -= dt;
     if (shopExitTimer <= 0) {
@@ -1197,15 +1400,31 @@ function drawHUD() {
   ctx.textAlign = 'left';
   ctx.font = 'bold 14px "Microsoft YaHei","PingFang SC",sans-serif';
   ctx.fillStyle = '#4a2e0a';
-  ctx.fillText('金钱：', 12, 24);
-  ctx.fillStyle = '#1dbd2a';
-  ctx.font = 'bold 16px "Microsoft YaHei",sans-serif';
-  ctx.fillText('$' + score, 58, 25);
-  ctx.fillStyle = '#4a2e0a';
-  ctx.font = 'bold 13px "Microsoft YaHei",sans-serif';
-  ctx.fillText('目标钱数：', 12, 48);
-  ctx.fillStyle = '#6b3f12';
-  ctx.fillText('$' + goal, 88, 48);
+  if (coop && miners.length > 1) {
+    ctx.fillText('左：', 12, 22);
+    ctx.fillStyle = '#1dbd2a';
+    ctx.font = 'bold 15px "Microsoft YaHei",sans-serif';
+    ctx.fillText('$' + miners[0].score, 36, 23);
+    ctx.fillStyle = '#4a2e0a';
+    ctx.font = 'bold 14px "Microsoft YaHei","PingFang SC",sans-serif';
+    ctx.fillText('右：', 110, 22);
+    ctx.fillStyle = '#1dbd2a';
+    ctx.font = 'bold 15px "Microsoft YaHei",sans-serif';
+    ctx.fillText('$' + miners[1].score, 134, 23);
+    ctx.fillStyle = '#4a2e0a';
+    ctx.font = 'bold 13px "Microsoft YaHei",sans-serif';
+    ctx.fillText('合计 $' + totalScore() + '  目标 $' + goal, 12, 48);
+  } else {
+    ctx.fillText('金钱：', 12, 24);
+    ctx.fillStyle = '#1dbd2a';
+    ctx.font = 'bold 16px "Microsoft YaHei",sans-serif';
+    ctx.fillText('$' + totalScore(), 58, 25);
+    ctx.fillStyle = '#4a2e0a';
+    ctx.font = 'bold 13px "Microsoft YaHei",sans-serif';
+    ctx.fillText('目标钱数：', 12, 48);
+    ctx.fillStyle = '#6b3f12';
+    ctx.fillText('$' + goal, 88, 48);
+  }
 
   ctx.fillStyle = '#4a2e0a';
   ctx.font = 'bold 13px "Microsoft YaHei",sans-serif';
@@ -1232,6 +1451,14 @@ function drawHUD() {
   ctx.textAlign = 'center';
   ctx.fillText('退出', W - 172, 20);
   ctx.fillText('本关', W - 172, 32);
+  if (coop) {
+    ctx.fillStyle = '#f0c040';
+    roundRect(W - 260, 8, 54, 28, 6); ctx.fill();
+    ctx.strokeStyle = '#a07820'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#5a3a10';
+    ctx.font = '11px "Microsoft YaHei",sans-serif';
+    ctx.fillText('按键', W - 233, 26);
+  }
   ctx.textAlign = 'left';
 
   if (stick > 0) {
@@ -1245,41 +1472,54 @@ function drawHUD() {
   }
 }
 
-function drawMiner() {
+function drawMiner(m) {
   let im = images.minerIdle;
-  if (minerPose === 'down') im = images.minerDown || im;
-  else if (minerPose === 'throw' || (dynToss && dynToss.phase === 'throw')) {
+  if (m.minerPose === 'down') im = images.minerDown || im;
+  else if (m.minerPose === 'throw' || (m.dynToss && m.dynToss.phase === 'throw')) {
     // Sprite 238 frames 31–33 → throw1/2/3
-    const f = (dynToss && dynToss.frame) || 31;
+    const f = (m.dynToss && m.dynToss.frame) || 31;
     const key = f <= 31 ? 'minerThrow1' : f === 32 ? 'minerThrow2' : 'minerThrow3';
     im = images[key] || images.minerPull || im;
-  } else if (minerPose === 'pull' || minerPose === 'up') {
-    const frame = ((minerAnim - 1) % PULL_FRAME_MAX) + 1;
+  } else if (m.minerPose === 'pull' || m.minerPose === 'up') {
+    const frame = ((m.minerAnim - 1) % PULL_FRAME_MAX) + 1;
     im = images['minerPull' + frame] || images.minerPull || images.minerUp || im;
   }
   if (!im) return;
   // All DefineSprite_238 frames are 139×144 — fixed stage size prevents flicker
   const mw = MINER_NATIVE.w * MINER_DRAW_SCALE;
   const mh = MINER_NATIVE.h * MINER_DRAW_SCALE;
-  const x = MINER_POS.x - mw / 2;
-  const y = Math.max(2, MINER_POS.y - mh * 0.42);
-  ctx.drawImage(im, x, y, mw, mh);
+  const x = m.pos.x - mw / 2;
+  const y = Math.max(2, m.pos.y - mh * 0.42);
+  if (m.flip) {
+    ctx.save();
+    ctx.translate(x + mw, y);
+    ctx.scale(-1, 1);
+    ctx.drawImage(im, 0, 0, mw, mh);
+    ctx.restore();
+  } else {
+    ctx.drawImage(im, x, y, mw, mh);
+  }
 }
 
-function drawClaw() {
-  const tip = clawTip();
+function drawMiners() {
+  for (const m of miners) drawMiner(m);
+}
+
+function drawClaw(m) {
+  const tip = clawTip(m);
+  const claw = m.claw;
   // rope to claw hinge (SWF tip/claw registration ≈ rope end)
   ctx.strokeStyle = '#1a1a1a';
   ctx.lineWidth = 1.6;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(PIVOT.x, PIVOT.y);
+  ctx.moveTo(m.pivot.x, m.pivot.y);
   ctx.lineTo(tip.x, tip.y);
   ctx.stroke();
   ctx.strokeStyle = 'rgba(255,255,255,0.22)';
   ctx.lineWidth = 0.7;
   ctx.beginPath();
-  ctx.moveTo(PIVOT.x + 0.5, PIVOT.y);
+  ctx.moveTo(m.pivot.x + 0.5, m.pivot.y);
   ctx.lineTo(tip.x + 0.5, tip.y);
   ctx.stroke();
 
@@ -1316,6 +1556,7 @@ function drawClaw() {
   ctx.restore();
 
   // Flying dynamite stick along rope (SWF DefineSprite_250 after frame 34)
+  const dynToss = m.dynToss;
   if (dynToss && dynToss.phase === 'fly') {
     const tip2 = tip;
     const ang = Math.atan2(tip2.y - dynToss.y, tip2.x - dynToss.x);
@@ -1336,6 +1577,7 @@ function drawClaw() {
     ctx.restore();
   }
 
+  const boomFx = m.boomFx;
   if (boomFx) {
     const a = Math.max(0, boomFx.life / 0.45);
     const boomIm = images.dynBoom;
@@ -1359,10 +1601,14 @@ function drawClaw() {
   }
 }
 
+function drawClaws() {
+  for (const m of miners) drawClaw(m);
+}
+
 function drawItems() {
   for (const it of items) {
     if (!it.alive) continue;
-    if (claw.caught === it) continue; // drawn nested under claw in drawClaw
+    if (hookHas(it)) continue; // drawn nested under claw in drawClaw
     if (it.walker) { drawMouse(it); continue; }
     const im = images[it.key];
     if (im) {
@@ -1413,6 +1659,84 @@ function drawExplosions() {
   }
 }
 
+function hitRect(p, x, y, w, h) {
+  return p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h;
+}
+
+function titleModeBtns() {
+  return [
+    { id: 'solo', x: 70, y: 268, w: 200, h: 36, label: '单人冒险' },
+    { id: 'coop', x: 280, y: 268, w: 200, h: 36, label: '双人协作' },
+  ];
+}
+
+function titleKeyBtns() {
+  // 2×2 under the mode buttons
+  const slots = KEY_SLOTS;
+  const out = [];
+  const baseY = 312;
+  for (let i = 0; i < slots.length; i++) {
+    const col = i < 2 ? 0 : 1;
+    const row = i % 2;
+    const x = 70 + col * 210;
+    const y = baseY + row * 28;
+    out.push({ id: slots[i].id, x, y, w: 200, h: 26, slot: slots[i] });
+  }
+  return out;
+}
+
+function drawPanelButton(x, y, w, h, label, on) {
+  ctx.fillStyle = on ? '#c9a227' : 'rgba(20,12,4,0.78)';
+  roundRect(x, y, w, h, 8); ctx.fill();
+  ctx.strokeStyle = on ? '#ffe9a0' : '#e0b84a';
+  ctx.lineWidth = on ? 2 : 1.2;
+  ctx.stroke();
+  ctx.fillStyle = on ? '#2a1a05' : '#ffe9a0';
+  ctx.font = 'bold 16px "Microsoft YaHei",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x + w / 2, y + 24);
+  ctx.textAlign = 'left';
+}
+
+function drawKeySettingsPanel(y0, fromPlay) {
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  const h = fromPlay ? 210 : 118;
+  const y = fromPlay ? (H - h) / 2 : y0;
+  roundRect(50, y, W - 100, h, 10); ctx.fill();
+  ctx.strokeStyle = '#e0b84a'; ctx.lineWidth = 1.5; ctx.stroke();
+  if (fromPlay) {
+    ctx.fillStyle = '#ffe9a0';
+    ctx.font = 'bold 18px "Microsoft YaHei",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('双人按键设置', W / 2, y + 28);
+    ctx.font = '12px "Microsoft YaHei",sans-serif';
+    ctx.fillStyle = '#ddd';
+    ctx.fillText(rebindTarget ? '请按下新的按键…（Esc 取消）' : '点击一项后按下新按键，Esc 或点空白关闭', W / 2, y + 48);
+    ctx.textAlign = 'left';
+    const slots = KEY_SLOTS;
+    for (let i = 0; i < slots.length; i++) {
+      const col = i < 2 ? 0 : 1;
+      const row = i % 2;
+      const x = 80 + col * 210;
+      const yy = y + 66 + row * 44;
+      const on = rebindTarget === slots[i].id;
+      ctx.fillStyle = on ? '#c9a227' : 'rgba(40,24,8,0.9)';
+      roundRect(x, yy, 190, 36, 8); ctx.fill();
+      ctx.strokeStyle = on ? '#fff' : '#e0b84a'; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.fillStyle = on ? '#2a1a05' : '#ffe9a0';
+      ctx.font = '13px "Microsoft YaHei",sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(slots[i].side + ' ' + slots[i].act + '  [' + keyLabel(keyBinds[slots[i].id]) + ']', x + 95, yy + 23);
+      ctx.textAlign = 'left';
+    }
+    ctx.fillStyle = '#9fe28f';
+    ctx.font = '12px "Microsoft YaHei",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('商店道具对两名矿工同时生效 · 过关看合计分数', W / 2, y + h - 16);
+    ctx.textAlign = 'left';
+  }
+}
+
 function drawTitle() {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
@@ -1423,6 +1747,36 @@ function drawTitle() {
     ctx.font = 'bold 48px sans-serif';
     ctx.fillText('开始', 100, 160);
   }
+  // Mode + co-op key bind strip (does not cover the gold-nugget start region)
+  ctx.fillStyle = 'rgba(0,0,0,0.62)';
+  roundRect(54, 258, W - 108, coop ? 128 : 56, 10); ctx.fill();
+  ctx.strokeStyle = 'rgba(224,184,74,0.85)'; ctx.lineWidth = 1.2; ctx.stroke();
+  for (const b of titleModeBtns()) drawPanelButton(b.x, b.y, b.w, b.h, b.label, (b.id === 'coop') === coop);
+  if (coop) {
+    ctx.font = '12px "Microsoft YaHei",sans-serif';
+    for (const b of titleKeyBtns()) {
+      const on = rebindTarget === b.id;
+      ctx.fillStyle = on ? '#c9a227' : 'rgba(30,18,6,0.0)';
+      if (on) { roundRect(b.x, b.y, b.w, b.h, 6); ctx.fill(); }
+      ctx.fillStyle = on ? '#2a1a05' : '#ffe9a0';
+      ctx.textAlign = 'left';
+      ctx.fillText(b.slot.side + ' ' + b.slot.act + '：[' + keyLabel(keyBinds[b.id]) + ']' + (on ? '  请按键…' : ''), b.x + 8, b.y + 18);
+    }
+  }
+}
+
+function overlayKeyHit(p) {
+  // Used when keyUiOpen mid-play
+  const y = (H - 210) / 2;
+  const slots = KEY_SLOTS;
+  for (let i = 0; i < slots.length; i++) {
+    const col = i < 2 ? 0 : 1;
+    const row = i % 2;
+    const x = 80 + col * 210;
+    const yy = y + 66 + row * 44;
+    if (hitRect(p, x, yy, 190, 36)) return slots[i].id;
+  }
+  return null;
 }
 
 function drawGoal() {
@@ -1442,6 +1796,11 @@ function drawGoal() {
   ctx.fillStyle = '#fff8d0';
   ctx.font = '14px "Microsoft YaHei",sans-serif';
   ctx.fillText(isTouch ? '点屏幕继续' : '点击或按 Enter 继续', W / 2, 320);
+  if (coop) {
+    ctx.fillStyle = '#ffe9a0';
+    ctx.font = '13px "Microsoft YaHei",sans-serif';
+    ctx.fillText('双人协作 · 过关看两人合计分数', W / 2, 348);
+  }
   ctx.textAlign = 'left';
 }
 
@@ -1465,7 +1824,7 @@ function drawShop() {
   ctx.fillStyle = '#ffe9a0';
   ctx.font = 'bold 15px "Microsoft YaHei",sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('金钱 $' + score + '　　炸药 ×' + stick, 28, 34);
+  ctx.fillText('金钱 $' + totalScore() + '　　炸药 ×' + stick, 28, 34);
   ctx.font = '12px "Microsoft YaHei",sans-serif';
   ctx.fillStyle = '#ddd';
   const sel = shopItems[shopSel];
@@ -1495,7 +1854,7 @@ function drawShop() {
   const iconKey = { dyn: 'shopDyn', str: 'shopStr', clover: 'shopClover', rock: 'shopRock', dia: 'shopDia' };
   shopItems.forEach((it, i) => {
     const x = 30 + i * 120, y = H - 150;
-    ctx.fillStyle = score >= it.price ? 'rgba(90,60,25,0.85)' : 'rgba(40,40,40,0.75)';
+    ctx.fillStyle = totalScore() >= it.price ? 'rgba(90,60,25,0.85)' : 'rgba(40,40,40,0.75)';
     roundRect(x, y, 105, 100, 10); ctx.fill();
     ctx.strokeStyle = shopSel === i ? '#fff36a' : '#f5d76e';
     ctx.lineWidth = shopSel === i ? 2.5 : 1.2;
@@ -1538,7 +1897,12 @@ function drawResult() {
   ctx.textAlign = 'center';
   ctx.fillText(resultOk ? '过关！' : '未达到目标', W / 2, 150);
   ctx.font = '18px sans-serif';
-  ctx.fillText('金钱 $' + score + ' / 目标 $' + goal, W / 2, 190);
+  if (coop && miners.length > 1) {
+    ctx.fillText('左 $' + miners[0].score + '  右 $' + miners[1].score, W / 2, 182);
+    ctx.fillText('合计 $' + totalScore() + ' / 目标 $' + goal, W / 2, 206);
+  } else {
+    ctx.fillText('金钱 $' + totalScore() + ' / 目标 $' + goal, W / 2, 190);
+  }
   ctx.fillStyle = '#2e8b57';
   roundRect(W / 2 - 70, 230, 140, 40, 8); ctx.fill();
   ctx.fillStyle = '#fff';
@@ -1554,7 +1918,7 @@ function drawWin() {
   ctx.textAlign = 'center';
   ctx.fillText('恭喜通关！', W / 2, 160);
   ctx.font = '20px sans-serif';
-  ctx.fillText('共获得 $' + score, W / 2, 210);
+  ctx.fillText('共获得 $' + totalScore(), W / 2, 210);
   ctx.fillStyle = '#2e8b57';
   roundRect(W / 2 - 70, 250, 140, 40, 8); ctx.fill();
   ctx.fillStyle = '#fff';
@@ -1566,12 +1930,12 @@ function drawTouchControls() {
   // Pads are HTML in letterbox; only a brief on-canvas hint remains
   refreshPadState();
   if (!padsEnabled || mode !== 'play') return;
-  if (hintAlpha > 0 && claw.state === 'swing') {
+  if (hintAlpha > 0 && allSwinging()) {
     ctx.globalAlpha = Math.min(1, hintAlpha);
     ctx.fillStyle = '#fff';
     ctx.font = '14px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('点右下「放钩」或屏幕放钩子', W / 2, H - 24);
+    ctx.fillText(coop ? '左右「放钩」或点屏幕左/右半区' : '点右下「放钩」或屏幕放钩子', W / 2, H - 24);
     ctx.textAlign = 'left';
     ctx.globalAlpha = 1;
   }
@@ -1597,19 +1961,20 @@ function render() {
   if (mode === 'title') drawTitle();
   else if (mode === 'goal') drawGoal();
   else if (mode === 'shop') drawShop();
-  else if (mode === 'result') { drawPlayBg(); drawMiner(); drawHUD(); drawResult(); }
+  else if (mode === 'result') { drawPlayBg(); drawMiners(); drawHUD(); drawResult(); }
   else if (mode === 'win') drawWin();
   else {
     drawPlayBg();
     drawItems();
     drawExplosions();
-    drawClaw();
+    drawClaws();
     drawHitShapes();
-    drawMiner();
+    drawMiners();
     drawHUD();
     drawFloats();
     drawTouchControls();
   }
+  if (keyUiOpen) drawKeySettingsPanel(0, true);
 }
 
 // ----- Debug level jump (bottom-right chip inside the canvas) -----
@@ -1664,18 +2029,21 @@ function closeDebug() {
 function debugJump(lv, variant) {
   lv = Math.min(MAX_LEVEL, Math.max(1, lv | 0));
   if (mode === 'title' || mode === 'win') {
-    score = 0; stick = 0;
+    setupMiners(false);
+    stick = 0;
     rockBonus = 0; diamondBonus = 0; cloverBonus = 0; strengthBoost = 0;
   }
   minerStrength = BASE_STRENGTH;
   strengthFlag = 0;
+  for (const m of miners) { m.strengthFlag = 0; m.dynToss = null; m.boomFx = null; }
   const g = goalForLevel(lv);
   level = lv; levelDis = lv;
   goal = g.goal; goalAddOn = g.goalAddOn;
   forcedVariant = variant | 0;
   stopPant();
-  dynToss = null; boomFx = null; explosions = [];
+  explosions = [];
   shopExitTimer = 0;
+  syncClawAlias();
   showGoal();
 }
 if (dbgLv) {
@@ -1727,8 +2095,28 @@ function onPointer(e) {
   unlockAudio();
   const p = canvasPos(e);
   if (mode === 'title') {
-    // gold nugget start region (upper-left)
+    for (const b of titleModeBtns()) {
+      if (hitRect(p, b.x, b.y, b.w, b.h)) {
+        coop = b.id === 'coop';
+        try { localStorage.setItem('gm_coop', coop ? '1' : '0'); } catch (err) {}
+        rebindTarget = null;
+        playSfx('click', 0.4);
+        layoutPads();
+        return;
+      }
+    }
+    if (coop) {
+      for (const b of titleKeyBtns()) {
+        if (hitRect(p, b.x, b.y, b.w, b.h)) {
+          rebindTarget = b.id;
+          playSfx('click', 0.35);
+          return;
+        }
+      }
+    }
+    // gold nugget start region (upper-left) — below y=260 stays free of the mode strip
     if (p.x > 30 && p.x < 290 && p.y > 20 && p.y < 260) {
+      rebindTarget = null;
       resetRun();
     }
     return;
@@ -1755,8 +2143,8 @@ function onPointer(e) {
       const x = 30 + i * 120, y = H - 150;
       if (p.x > x && p.x < x + 105 && p.y > y && p.y < y + 100) {
         shopSel = i;
-        if (score >= it.price) {
-          score -= it.price;
+        if (totalScore() >= it.price) {
+          spendMoney(it.price);
           it.buy();
           shopBought = 1;
           shopFace = 'happy';
@@ -1768,12 +2156,29 @@ function onPointer(e) {
     return;
   }
   if (mode === 'play') {
+    if (keyUiOpen) {
+      const id = overlayKeyHit(p);
+      if (id) rebindTarget = id;
+      else { keyUiOpen = false; rebindTarget = null; lastTs = 0; logicAcc = 0; }
+      return;
+    }
     if (p.x > W - 200 && p.x < W - 144 && p.y > 6 && p.y < 38) {
       mode = 'title';
       syncPadsVisibility();
       return;
     }
-    dropClaw();
+    if (coop && p.x > W - 260 && p.x < W - 206 && p.y > 6 && p.y < 38) {
+      keyUiOpen = true;
+      rebindTarget = null;
+      playSfx('click', 0.35);
+      return;
+    }
+    if (p.y < 58) return; // ignore HUD clicks
+    if (coop && miners.length > 1) {
+      dropClaw(p.x < W / 2 ? miners[0] : miners[1]);
+    } else {
+      dropClaw(miners[0]);
+    }
   }
 }
 
@@ -1789,8 +2194,10 @@ function bindPad(el, fn) {
   el.addEventListener('pointerdown', fire);
   el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
 }
-bindPad(btnDrop, () => { if (mode === 'play') dropClaw(); });
-bindPad(btnDyn, () => { if (mode === 'play') useDynamite(); });
+bindPad(btnDrop, () => { if (mode === 'play') dropClaw(coop && miners[1] ? miners[1] : miners[0]); });
+bindPad(btnDyn, () => { if (mode === 'play') useDynamite(coop && miners[1] ? miners[1] : miners[0]); });
+bindPad(btnDropL, () => { if (mode === 'play') dropClaw(miners[0]); });
+bindPad(btnDynL, () => { if (mode === 'play') useDynamite(miners[0]); });
 
 canvas.addEventListener('mousedown', onPointer);
 canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onPointer(e); }, { passive: false });
@@ -1799,6 +2206,16 @@ canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onPointer(e);
   addEventListener(ev, unlockAudio, { once: true, passive: true });
 });
 
+function abortDrop(m) {
+  if (!m || m.claw.state !== 'drop') return;
+  m.claw.state = 'pull';
+  m.claw.caught = null;
+  m.claw.price = 0;
+  m.claw.weight = 0;
+  m.claw.stickBonus = 1;
+  m.minerPose = 'up';
+}
+
 addEventListener('keydown', (e) => {
   unlockAudio();
   if (debugOpen) {
@@ -1806,17 +2223,33 @@ addEventListener('keydown', (e) => {
     if (e.code === 'Enter') { closeDebug(); debugJump(dbgPickLv, dbgPickVar); }
     return;
   }
-  if (e.code === 'ArrowDown' || e.code === 'Space') { e.preventDefault(); dropClaw(); }
-  if (e.code === 'ArrowUp' || e.code === 'KeyD') { e.preventDefault(); useDynamite(); }
-  // ←/→ force pull-up like SWF
-  if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && claw.state === 'drop') {
+  if (rebindTarget) {
+    if (e.code === 'Escape') { rebindTarget = null; return; }
+    if (e.code === 'Tab' || e.code === 'Enter' || e.code === 'MetaLeft' || e.code === 'MetaRight') return;
     e.preventDefault();
-    claw.state = 'pull';
-    claw.caught = null;
-    claw.price = 0;
-    claw.weight = 0;
-    claw.stickBonus = 1;
-    minerPose = 'up';
+    keyBinds[rebindTarget] = e.code;
+    saveKeyBinds();
+    rebindTarget = null;
+    playSfx('click', 0.4);
+    return;
+  }
+  if (keyUiOpen) {
+    if (e.code === 'Escape') { keyUiOpen = false; lastTs = 0; logicAcc = 0; }
+    return;
+  }
+  if (coop && mode === 'play') {
+    if (e.code === keyBinds.leftHook) { e.preventDefault(); dropClaw(miners[0]); }
+    if (e.code === keyBinds.leftBomb) { e.preventDefault(); useDynamite(miners[0]); }
+    if (e.code === keyBinds.rightHook) { e.preventDefault(); dropClaw(miners[1]); }
+    if (e.code === keyBinds.rightBomb) { e.preventDefault(); useDynamite(miners[1]); }
+  } else if (mode === 'play') {
+    if (e.code === 'ArrowDown' || e.code === 'Space') { e.preventDefault(); dropClaw(miners[0]); }
+    if (e.code === 'ArrowUp' || e.code === 'KeyD') { e.preventDefault(); useDynamite(miners[0]); }
+    // ←/→ force pull-up like SWF (1P only; arrows may be remapped in co-op)
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+      e.preventDefault();
+      abortDrop(miners[0]);
+    }
   }
   if (e.code === 'Enter' && mode === 'title') resetRun();
   if (e.code === 'Enter' && mode === 'goal') startLevel();
@@ -1880,7 +2313,7 @@ function frame(ts) {
 })();
 
 dbgBtnReady = true;
-window.__GM = { clawHitAt, clawOverlap, itemHitMask, getClawHit, get showHitShapes(){return showHitShapes}, debugJump, goalForLevel, get explosions(){return explosions}, resetRun, dropClaw, useDynamite, layoutPads, detectTouchUI, get mode(){return mode}, get items(){return items}, get claw(){return claw} };
+window.__GM = { clawHitAt, clawOverlap, itemHitMask, getClawHit, get showHitShapes(){return showHitShapes}, debugJump, goalForLevel, get explosions(){return explosions}, resetRun, dropClaw, useDynamite, layoutPads, detectTouchUI, get mode(){return mode}, get items(){return items}, get claw(){return miners[0] && miners[0].claw}, get miners(){return miners}, get coop(){return coop}, totalScore };
 
 
 window.addEventListener("message", (ev) => {

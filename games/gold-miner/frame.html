@@ -19,10 +19,14 @@
   #load.hide{opacity:0;pointer-events:none;transition:opacity .35s;}
   /* Virtual pads live in letterbox margin — never over the 550×400 playfield */
   #pads{
-    position:fixed;z-index:30;display:none;flex-direction:column;gap:10px;
-    touch-action:none;-webkit-user-select:none;user-select:none;pointer-events:auto;
+    position:fixed;z-index:30;display:none;inset:0;pointer-events:none;
+    touch-action:none;-webkit-user-select:none;user-select:none;
   }
-  #pads.on{display:flex;}
+  #pads.on{display:block;}
+  .pad-col{
+    position:absolute;display:flex;flex-direction:column;gap:10px;
+    pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none;
+  }
   #pads button{
     width:64px;height:64px;border-radius:50%;border:2px solid rgba(255,255,255,0.65);
     background:rgba(20,20,20,0.34);color:#fff;font:bold 14px "PingFang SC","Microsoft YaHei",sans-serif;
@@ -68,8 +72,14 @@
 <div id="load"><div>黄金矿工加载中…</div><bar><i id="bar"></i></bar><div id="pct">0%</div></div>
 <div id="wrap"><canvas id="c" width="550" height="400"></canvas></div>
 <div id="pads" aria-hidden="true">
-  <button type="button" id="btnDrop" aria-label="放钩"><span>放钩</span></button>
-  <button type="button" id="btnDyn" aria-label="炸药"><span>炸药</span><span class="sub" id="dynCount">0</span></button>
+  <div class="pad-col" id="padsL" hidden>
+    <button type="button" id="btnDropL" aria-label="左放钩"><span>左钩</span></button>
+    <button type="button" id="btnDynL" aria-label="左炸药"><span>左炸药</span><span class="sub" id="dynCountL">0</span></button>
+  </div>
+  <div class="pad-col" id="padsR">
+    <button type="button" id="btnDrop" aria-label="放钩"><span>放钩</span></button>
+    <button type="button" id="btnDyn" aria-label="炸药"><span>炸药</span><span class="sub" id="dynCount">0</span></button>
+  </div>
 </div>
 <button type="button" id="dbgBtn" aria-label="debug 跳关">debug</button>
 <div id="dbgModal" role="dialog" aria-modal="true" aria-hidden="true">
@@ -88,8 +98,8 @@
     <div id="dbgAct"><button type="button" id="dbgClose">取消</button><button type="button" id="dbgGo">跳转</button></div>
   </div>
 </div>
-<script src="levels.js?v=13"></script>
-<script src="swing.js?v=13"></script>
-<script src="game.js?v=13"></script>
+<script src="levels.js?v=14"></script>
+<script src="swing.js?v=14"></script>
+<script src="game.js?v=14"></script>
 </body>
 </html>
