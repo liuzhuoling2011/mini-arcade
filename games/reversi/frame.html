@@ -3,26 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#070b16">
+<meta name="theme-color" content="#0c0f0e">
 <title>黑白棋</title>
 <link rel="stylesheet" href="/mini-arcade/shared/board-chrome.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main class="app">
-  <div class="topbar">
+  <header class="topbar">
     <div class="brand">
       <h1>黑白棋</h1>
       <p>8×8 · 翻转夹击</p>
     </div>
     <div class="scores">
-      <div class="score black" id="scoreB"><span class="pip" aria-hidden="true"></span><span>黑<strong>2</strong></span></div>
-      <div class="score white" id="scoreW"><span class="pip" aria-hidden="true"></span><span>白<strong>2</strong></span></div>
+      <div class="score black" id="scoreB"><canvas class="pip" data-color="1" aria-hidden="true"></canvas><span class="who">黑</span><strong>2</strong></div>
+      <div class="score white" id="scoreW"><canvas class="pip" data-color="2" aria-hidden="true"></canvas><span class="who">白</span><strong>2</strong></div>
     </div>
-  </div>
-  <div class="status" id="status">选择模式开始</div>
-  <div class="board-wrap">
-    <div class="board" id="board" aria-label="黑白棋棋盘"></div>
+  </header>
+  <div class="status" id="status" aria-live="polite">选择模式开始</div>
+  <div class="board-wrap" id="boardWrap">
+    <canvas class="board" id="board" role="img" aria-label="黑白棋棋盘"></canvas>
+    <div class="toast" id="toast" role="status" hidden></div>
   </div>
   <div class="toolbar">
     <button type="button" class="btn" id="btnResign">认输</button>
