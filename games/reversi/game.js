@@ -97,36 +97,78 @@
 
   var diskEls = []; // persistent .disk nodes per cell
 
-  var FLIP_MS = 300;
-  var PLACE_MS = 280;
-  var STAGGER_MS = 58;
+  var EDGE_N = 28;
+  var FLIP_MS = 320;
+  var PLACE_MS = 340;
+  var STAGGER_MS = 52;
   var anims = [];
   var rafId = 0;
   var hotCell = -1;
+  var onAnimsDone = null;
 
-  function easeInOutCubic(t) {
-    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  function easeInOutSine(t) {
+    return -(Math.cos(Math.PI * t) - 1) / 2;
   }
-  function easeOutBack(t) {
-    var c1 = 1.70158, c3 = c1 + 1;
-    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
   }
   function faceAngle(color) {
     return color === BLACK ? 0 : 180;
   }
-  function setDiskAngle(d, ang, lift, bright) {
-    var extra = "";
-    if (lift) extra += " translateZ(" + lift + "px)";
-    d.style.transform = "rotateY(" + ang + "deg)" + extra;
-    if (bright != null) d.style.filter = "brightness(" + bright + ")";
-    else d.style.filter = "";
+  function layoutDisk(wrap) {
+    if (!wrap) return;
+    var w = wrap.clientWidth;
+    if (!w) return;
+    wrap.style.setProperty("--dw", w + "px");
+    wrap.style.setProperty("--thick", Math.max(5.5, w * 0.21) + "px");
+    wrap.style.setProperty("--n", String(EDGE_N));
+  }
+  function setShadow(wrap, liftAmt) {
+    if (!wrap) return;
+    var sh = wrap.querySelector(".disk-shadow");
+    if (!sh) return;
+    var y = 16 + 18 * liftAmt;
+    var sx = 1.05 + 0.16 * liftAmt;
+    var sy = 0.40 + 0.08 * liftAmt;
+    var op = 0.95 - 0.42 * liftAmt;
+    sh.style.transform = "translate3d(0, " + y + "%, 0) scale(" + sx + ", " + sy + ")";
+    sh.style.opacity = String(op);
+  }
+  function setDiskPose(d, ang, liftY, liftZ, sx, sy) {
+    var t = "rotateY(" + ang + "deg)";
+    if (liftZ) t += " translateZ(" + liftZ + "px)";
+    if (liftY) t += " translateY(" + liftY + "px)";
+    if (sx == null) sx = 1;
+    if (sy == null) sy = 1;
+    if (sx !== 1 || sy !== 1) t += " scale(" + sx + ", " + sy + ")";
+    d.style.transform = t;
   }
   function settleDisk(d, color) {
     d.classList.remove("placed");
     d.classList.toggle("b", color === BLACK);
     d.classList.toggle("w", color === WHITE);
-    setDiskAngle(d, faceAngle(color), 0, null);
-    d.style.filter = "";
+    setDiskPose(d, faceAngle(color), 0, 0, 1, 1);
+    if (d.parentNode) {
+      d.parentNode.style.zIndex = "";
+      setShadow(d.parentNode, 0);
+    }
+  }
+  function placePose(t) {
+    /* Gravity drop, then one soft squash/rebound. Never fades. */
+    if (t < 0.70) {
+      var p = t / 0.70;
+      var e = p * p * p;
+      var y = -26 * (1 - e);
+      var impact = p < 0.82 ? 0 : (p - 0.82) / 0.18;
+      return { y: y, sx: 1 + 0.07 * impact, sy: 1 - 0.1 * impact, lift: 0 };
+    }
+    var p = (t - 0.70) / 0.30;
+    var bounce = Math.sin(p * Math.PI) * (1 - p * 0.28);
+    var y = -5.5 * bounce;
+    var rec = Math.exp(-3.4 * p);
+    var sy = 1 - 0.10 * Math.cos(p * Math.PI) * rec;
+    var sx = 1 + (1 - sy) * 0.7;
+    return { y: y, sx: sx, sy: sy, lift: 0 };
   }
   function tickAnims(now) {
     rafId = 0;
@@ -139,57 +181,87 @@
       if (t < 0) { still.push(a); continue; }
       if (t > 1) t = 1;
       if (a.type === "place") {
-        var e = easeOutBack(t);
-        var y = (1 - e) * -16;
-        var sc = 0.55 + 0.45 * e;
-        a.el.style.opacity = String(Math.min(1, t * 2.2));
-        a.el.style.transform = "rotateY(" + a.ang + "deg) translateY(" + y + "px) scale(" + sc + ")";
+        var pose = placePose(t);
+        setDiskPose(a.el, a.ang, pose.y, 0, pose.sx, pose.sy);
         if (t < 1) still.push(a);
-        else {
-          a.el.style.opacity = "";
-          settleDisk(a.el, a.color);
-        }
+        else settleDisk(a.el, a.color);
       } else if (a.type === "flip") {
-        var p = easeInOutCubic(t);
+        var p = easeInOutSine(t);
         var ang = a.fromAng + (a.toAng - a.fromAng) * p;
-        var mid = Math.sin(p * Math.PI);
-        var lift = mid * 12;
-        var bright = 0.72 + 0.28 * Math.abs(Math.cos(ang * Math.PI / 180));
-        setDiskAngle(a.el, ang, lift, bright);
+        var mid = Math.sin(t * Math.PI);
+        var liftY = -11 * mid;
+        var liftZ = 16 * mid;
+        setDiskPose(a.el, ang, liftY, liftZ, 1, 1);
+        setShadow(a.el.parentNode, mid);
+        if (a.el.parentNode) a.el.parentNode.style.zIndex = "6";
         if (t < 1) still.push(a);
         else settleDisk(a.el, a.color);
       }
     }
     anims = still;
     if (anims.length) rafId = requestAnimationFrame(tickAnims);
+    else if (onAnimsDone) {
+      var cb = onAnimsDone;
+      onAnimsDone = null;
+      cb();
+    }
   }
   function kickAnims() {
     if (!rafId) rafId = requestAnimationFrame(tickAnims);
   }
   function clearAnims() {
     anims = [];
+    onAnimsDone = null;
     if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
   }
 
   function ensureDisk(p) {
-    if (diskEls[p]) return diskEls[p];
+    if (diskEls[p]) {
+      layoutDisk(diskEls[p].parentNode);
+      return diskEls[p];
+    }
     var wrap = document.createElement("div");
     wrap.className = "disk-wrap";
+    var shadow = document.createElement("div");
+    shadow.className = "disk-shadow";
     var d = document.createElement("div");
     d.className = "disk b";
-    var rim = document.createElement("div");
-    rim.className = "rim";
+    var ring = document.createElement("div");
+    ring.className = "edge-ring";
+    for (var i = 0; i < EDGE_N; i++) {
+      var seg = document.createElement("div");
+      seg.className = "edge-seg";
+      seg.style.setProperty("--i", String(i));
+      seg.style.setProperty("--ang", (360 / EDGE_N * i) + "deg");
+      ring.appendChild(seg);
+    }
     var front = document.createElement("div");
     front.className = "face front";
     var back = document.createElement("div");
     back.className = "face back";
-    d.appendChild(rim);
+    d.appendChild(ring);
     d.appendChild(front);
     d.appendChild(back);
+    wrap.appendChild(shadow);
     wrap.appendChild(d);
     cells[p].appendChild(wrap);
     diskEls[p] = d;
+    layoutDisk(wrap);
     return d;
+  }
+
+  function watchDiskSize() {
+    function relayout() {
+      for (var p = 0; p < 64; p++) {
+        if (diskEls[p]) layoutDisk(diskEls[p].parentNode);
+      }
+    }
+    if (typeof ResizeObserver !== "undefined") {
+      var ro = new ResizeObserver(relayout);
+      ro.observe(boardEl);
+    } else {
+      window.addEventListener("resize", relayout);
+    }
   }
 
   function syncLegalsAndScores() {
@@ -220,6 +292,11 @@
       settleDisk(d, board[p]);
     }
     syncLegalsAndScores();
+    requestAnimationFrame(function () {
+      for (var q = 0; q < 64; q++) {
+        if (diskEls[q]) layoutDisk(diskEls[q].parentNode);
+      }
+    });
   }
 
   function pulseStatus() {
@@ -293,8 +370,9 @@
     board[pos] = color;
     var placed = ensureDisk(pos);
     placed.parentNode.style.display = "";
-    placed.style.opacity = "0";
     settleDisk(placed, color);
+    placed.parentNode.style.zIndex = "6";
+    setDiskPose(placed, faceAngle(color), -26, 0, 1, 1);
     anims.push({ type: "place", el: placed, color: color, ang: faceAngle(color), delay: 0, dur: PLACE_MS, start: null });
 
     animating = true;
@@ -319,16 +397,21 @@
       var toAng = from === BLACK && color === WHITE ? 180
         : from === WHITE && color === BLACK ? 360
         : faceAngle(color);
-      setDiskAngle(d, fromAng, 0, null);
+      setDiskPose(d, fromAng, 0, 0, 1, 1);
       anims.push({ type: "flip", el: d, color: color, fromAng: fromAng, toAng: toAng, delay: delay, dur: FLIP_MS, start: null });
       maxEnd = Math.max(maxEnd, delay + FLIP_MS);
     });
     kickAnims();
 
-    setTimeout(function () {
+    var finished = false;
+    function finishMove() {
+      if (finished) return;
+      finished = true;
       animating = false;
       afterMove();
-    }, maxEnd + 40);
+    }
+    onAnimsDone = finishMove;
+    setTimeout(finishMove, maxEnd + 80);
   }
 
   function cellFromEvent(ev) {
@@ -562,5 +645,5 @@
   });
   boardEl.addEventListener("pointerleave", function () { setHot(-1); });
 
-  build(); reset();
+  build(); watchDiskSize(); reset();
 })();
