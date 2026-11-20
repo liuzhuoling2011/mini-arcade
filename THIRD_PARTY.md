@@ -18,3 +18,9 @@
   捷径触发表与同色格索引对齐 MIT 项目 [netmanfisher/chinese-ludo](https://github.com/netmanfisher/chinese-ludo)（并参照 DynamsoftRD/Modern-Ludo 规则描述）后**重写**逻辑与绘制，未 vendoring 其 UI。
 
 各许可证全文见上述项目仓库；分发本合集时请保留本说明与引擎文件头版权声明。
+
+## 斗地主：flutter/games 架构与交互参考
+
+`games/doudizhu/` 参考 [flutter/games](https://github.com/flutter/games) 的 `templates/card`、`templates/basic`，研究版本 `e3ba3c566e332c6f6c0dd54ce2a6306b7abf114b`。参考内容：规则模型/展示分离、响应式手牌组件、设置/进度持久化、音效/音乐 facade 与应用生命周期暂停。项目卡牌模板不是斗地主，不提供本作斗地主规则或 AI。
+
+本作为原生 HTML/CSS/JavaScript 新实现，没有复制其 Dart 源码或素材；保留参考代码的 BSD 三条款通知于 [`games/doudizhu/REFERENCE-LICENSE.txt`](games/doudizhu/REFERENCE-LICENSE.txt)。Flutter 仓库根 LICENSE 还包含其他第三方条款，模板音乐为 CC-BY（Mr Smith）、音效 CC0、字体另有许可；本作均未采用。扑克牌用系统字符与 CSS，音效/轻背景旋律用 WebAudio 原创合成，无外部字体、音轨或运行时 CDN。具体研究文件与映射见 [`games/doudizhu/README.md`](games/doudizhu/README.md)。

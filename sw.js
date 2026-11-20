@@ -2,7 +2,7 @@
    Scope is the script directory (/mini-arcade/ on GitHub Pages).
    Requests outside that prefix are ignored so sibling Pages apps are untouched.
    Shell files are cached up front. Each game's files are cached only after a visit. */
-const VERSION = "v12";
+const VERSION = "v13";
 const CACHE = "mini-arcade-" + VERSION;
 const PREFIX = "/mini-arcade/";
 const SHELL = [
@@ -22,7 +22,10 @@ const SHELL = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting())
+    // A new cache version must not inherit a still-fresh HTTP-cached old shell.
+    caches.open(CACHE).then((cache) => cache.addAll(
+      SHELL.map((url) => new Request(url, { cache: "reload" }))
+    )).then(() => self.skipWaiting())
   );
 });
 

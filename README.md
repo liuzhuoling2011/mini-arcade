@@ -1,6 +1,6 @@
 # 小游戏合集
 
-十个网页小游戏放在同一个 GitHub Pages 站点里，各自有地址，合集页只负责挑选。
+十一个网页小游戏放在同一个 GitHub Pages 站点里，各自有地址，合集页只负责挑选。
 
 - 合集：https://liuzhuoling2011.github.io/mini-arcade/
 - 大鱼吃小鱼：https://liuzhuoling2011.github.io/mini-arcade/games/big-fish/
@@ -10,6 +10,7 @@
 - 2048：https://liuzhuoling2011.github.io/mini-arcade/games/2048/
 - 五子棋：https://liuzhuoling2011.github.io/mini-arcade/games/gomoku/
 - 中国象棋：https://liuzhuoling2011.github.io/mini-arcade/games/xiangqi/
+- 斗地主：https://liuzhuoling2011.github.io/mini-arcade/games/doudizhu/
 - 黑白棋：https://liuzhuoling2011.github.io/mini-arcade/games/reversi/
 - 飞行棋：https://liuzhuoling2011.github.io/mini-arcade/games/ludo/
 - 盖大楼：https://liuzhuoling2011.github.io/mini-arcade/games/tower-bloxx/
@@ -49,3 +50,7 @@ PY
 ```
 
 然后打开 http://127.0.0.1:8080/mini-arcade/
+
+## 斗地主（翡翠牌社）
+
+新增单人对两名 AI 的完整经典斗地主：全牌型规则、三档策略、叫分/炸弹/春天零和虚拟计分、手机双排手牌、点选/拖扫、提示/托管、动画、可开关的本地合成音效与轻 BGM。无真钱、无联网多人、无运行时外部依赖。参考 flutter/games 的卡牌模板架构（不是斗地主规则来源），具体规则、来源、测试及限制见 [游戏说明](games/doudizhu/README.md)。PWA 缓存版本 v13，游戏仍按需缓存。

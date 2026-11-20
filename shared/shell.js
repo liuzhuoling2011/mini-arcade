@@ -10,6 +10,7 @@
     { id: "2048", name: "2048", blurb: "滑动合并数字" },
     { id: "gomoku", name: "五子棋", blurb: "15×15 五子连珠" },
     { id: "xiangqi", name: "中国象棋", blurb: "楚河汉界" },
+    { id: "doudizhu", name: "斗地主", blurb: "翡翠牌桌 · 策略人机" },
     { id: "reversi", name: "黑白棋", blurb: "翻转夹击" },
     { id: "ludo", name: "飞行棋", blurb: "掷骰起飞" },
     { id: "tower-bloxx", name: "盖大楼", blurb: "摇摆叠楼冲高" }
@@ -98,6 +99,7 @@
     if (id === "2048") return "330";
     if (id === "gomoku") return "25";
     if (id === "xiangqi") return "12";
+    if (id === "doudizhu") return "152";
     if (id === "reversi") return "168";
     if (id === "ludo") return "280";
     if (id === "tower-bloxx") return "210";
@@ -204,7 +206,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register(BASE + "/sw.js?v=7", { scope: BASE + "/" }).then(function () {
+    navigator.serviceWorker.register(BASE + "/sw.js?v=13", { scope: BASE + "/" }).then(function () {
       return navigator.serviceWorker.ready;
     }).then(function () {
       // The first document loads before the worker controls it, so its files

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#103e3b" />
+    <title>翡翠牌社 · 斗地主</title>
+    <link rel="stylesheet" href="table.css" />
+  </head>
+  <body>
+    <main class="game">
+      <header class="topbar">
+        <div class="wordmark">
+          <span class="emblem">♠</span>
+          <div>翡翠牌社<small>DOU DIZHU · 单人练习</small></div>
+        </div>
+        <div class="top-actions">
+          <button id="rulesButton" aria-label="玩法规则">玩法</button
+          ><button id="settingsButton" aria-label="音效与设置">设置</button
+          ><button id="newButton">新局</button>
+        </div>
+      </header>
+      <div class="scorebar">
+        <span>我的积分 <b id="totalScore">0</b></span
+        ><span id="record">0 胜 / 0 局</span
+        ><span class="practice">虚拟积分 · 无真钱</span>
+      </div>
+      <section class="table" aria-label="斗地主牌桌">
+        <div class="table-rail"></div>
+        <div class="watermark">翡翠牌社<span>FAIR PLAY • GOOD TIMES</span></div>
+        <div class="bottom-zone">
+          <span class="eyebrow">地主底牌</span>
+          <div id="bottom" class="bottom-cards"></div>
+          <div id="multiplier" class="multiplier">等待叫分</div>
+        </div>
+        <section id="seat1" class="seat opponent left">
+          <div class="avatar">林</div>
+          <div class="seat-info">
+            <b>林间风</b><span class="role">等待入座</span
+            ><span class="remaining"></span>
+          </div>
+          <div class="card-stack"></div>
+          <div class="seat-bubble" id="bubble1"></div>
+        </section>
+        <section id="seat2" class="seat opponent right">
+          <div class="avatar">月</div>
+          <div class="seat-info">
+            <b>月下客</b><span class="role">等待入座</span
+            ><span class="remaining"></span>
+          </div>
+          <div class="card-stack"></div>
+          <div class="seat-bubble" id="bubble2"></div>
+        </section>
+        <div id="trick" class="trick" aria-label="桌面出牌"></div>
+        <div id="notice" class="notice" role="status" aria-live="polite"></div>
+        <div id="celebration" class="celebration" aria-hidden="true"></div>
+        <section id="seat0" class="seat self">
+          <div class="avatar">我</div>
+          <div class="seat-info">
+            <b>你</b><span class="role"></span><span class="remaining"></span>
+          </div>
+          <div class="seat-bubble" id="bubble0"></div>
+          <button id="autoButton" aria-pressed="false">托管</button>
+        </section>
+      </section>
+      <section class="player-zone" aria-label="你的手牌与操作">
+        <div id="turnLabel" class="turn-label" aria-live="polite">
+          准备好，来一局好牌
+        </div>
+        <div id="bidActions" class="actions" hidden>
+          <button data-bid="0">不叫</button><button data-bid="1">1 分</button
+          ><button data-bid="2">2 分</button
+          ><button data-bid="3" class="primary">3 分</button>
+        </div>
+        <div id="playActions" class="actions">
+          <button id="passButton">不出 <kbd>P</kbd></button
+          ><button id="hintButton">提示 <kbd>H</kbd></button
+          ><button id="clearButton">重选</button
+          ><button id="playButton" class="primary">出牌 <kbd>↵</kbd></button>
+        </div>
+        <div id="hand" class="hand" aria-label="你的手牌"></div>
+        <footer>
+          <span id="selectionLabel">点选 / 拖扫选牌</span
+          ><span class="keyboard-tip"
+            >H 提示 · P 不出 · Enter 出牌 · Esc 取消</span
+          >
+        </footer>
+      </section>
+    </main>
+    <dialog id="welcome" class="modal welcome">
+      <div class="modal-mark">♠ <span>♥</span> ♣ <span>♦</span></div>
+      <p class="eyebrow">欢迎来到翡翠牌社</p>
+      <h1>好牌，更要好配合。</h1>
+      <p>一副牌，三个座位。叫分争地主，<br />或与农民搭档一起赢下这一局。</p>
+      <div class="feature-row">
+        <span>54 张经典牌</span><span>策略型 AI</span><span>离线可玩</span>
+      </div>
+      <label
+        >对手难度
+        <select id="startDifficulty">
+          <option value="easy">休闲</option>
+          <option value="normal" selected>标准</option>
+          <option value="hard">挑战</option>
+        </select></label
+      ><button id="startButton" class="primary large">入座 · 开始发牌</button
+      ><small
+        >单人对两名电脑 · 积分仅保存在当前浏览器<br />首次操作开启音效，背景音乐默认关闭</small
+      >
+    </dialog>
+    <dialog id="settings" class="modal">
+      <button class="close" data-close="settings" aria-label="关闭设置">
+        ×
+      </button>
+      <p class="eyebrow">YOUR TABLE, YOUR WAY</p>
+      <h2>牌桌设置</h2>
+      <label
+        >难度（下局生效）<select id="difficulty">
+          <option value="easy">休闲 · 轻松练习</option>
+          <option value="normal">标准 · 农民配合</option>
+          <option value="hard">挑战 · 保留组合</option>
+        </select></label
+      ><label>出牌音效 <input id="sfx" type="checkbox" /></label
+      ><label>轻背景音乐 <input id="music" type="checkbox" /></label
+      ><label
+        >总音量 <input id="volume" type="range" min="0" max="1" step="0.05"
+      /></label>
+      <p class="muted">切到后台或打开合集菜单时，对局与声音会暂停。</p>
+      <button class="primary" data-close="settings">回到牌桌</button>
+    </dialog>
+    <dialog id="rules" class="modal rules">
+      <button class="close" data-close="rules" aria-label="关闭规则">×</button>
+      <p class="eyebrow">HOW TO PLAY</p>
+      <h2>经典三人斗地主</h2>
+      <h3>发牌与叫分</h3>
+      <p>
+        54 张牌，每人 17 张，底牌 3 张。起叫座位逐局轮换，依次不叫或叫更高的 1 /
+        2 / 3 分；叫 3 分立即确定地主，全不叫重新洗牌。地主拿底牌，20 张先出。
+      </p>
+      <h3>出牌规则</h3>
+      <p>
+        3 &lt; 4 &lt; … &lt; K &lt; A &lt; 2 &lt; 小王 &lt;
+        大王，花色不分大小。同牌型、同张数比主体最高点数。连续两家不出后清桌，由最后出牌者领出。率先出完即本方获胜。
+      </p>
+      <ul>
+        <li>单张、对子、三张；三带一、三带二。</li>
+        <li>
+          顺子至少 5 张；连对至少 3 对；飞机至少 2 组连续三张。连续主体均不能含
+          2 或王。
+        </li>
+        <li>
+          飞机可不带、每组三张带一张或一对。翅膀不可与主体同点数；单翅可用对子拆成两张，每点数最多两张；对翅须为不同点数的对子。四张同点可拆三张作主体，但余下一张不可作自身翅膀。
+        </li>
+        <li>
+          四带二单允许带一对，也允许两张王；四带二对必须带两种不同点数对子。四带二不是炸弹。
+        </li>
+        <li>炸弹：四张同点，压过普通牌型；王炸：双王，最大。炸弹间比点数。</li>
+      </ul>
+      <h3>零和虚拟计分</h3>
+      <p>
+        单位分 = 叫分 × 2<sup>炸弹数 + 王炸数 + 春天次数</sup
+        >。地主赢且两农民均未出过牌为春天；农民赢且地主只出过一次为反春天，均额外翻倍。地主胜得
+        2 单位、两农民各失 1
+        单位；农民胜反之。累计分与胜率只保存在本浏览器，不涉及真钱。
+      </p>
+      <h3>操作</h3>
+      <p>
+        点击牌切换选中，按住横向拖扫可连续选择 / 取消。手机手牌分两排，20
+        张也可辨认。H 提示（连续按可轮换），P / 空格不出，Enter 出牌，Esc
+        取消选择。托管可随时取消；不读取对手暗牌。
+      </p>
+      <button class="primary" data-close="rules">明白了</button>
+    </dialog>
+    <dialog id="result" class="modal result">
+      <p id="resultEyebrow" class="eyebrow"></p>
+      <h2 id="resultTitle"></h2>
+      <div id="resultScore" class="result-score"></div>
+      <div id="breakdown"></div>
+      <div id="scoreRows"></div>
+      <p id="resultRecord" class="muted"></p>
+      <button id="againButton" class="primary large">再来一局</button
+      ><button data-close="result">留在桌面</button>
+    </dialog>
+    <dialog id="confirmNew" class="modal">
+      <h2>重新开局？</h2>
+      <p>当前未结束的对局将放弃，不计入战绩。</p>
+      <button id="confirmNewButton" class="primary">重新发牌</button
+      ><button data-close="confirmNew">继续本局</button>
+    </dialog>
+    <script type="module" src="app.mjs"></script>
+  </body>
+</html>
