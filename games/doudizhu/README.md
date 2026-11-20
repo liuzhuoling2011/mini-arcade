@@ -7,9 +7,9 @@
 通过 GitHub `gh api` 远程阅读 [flutter/games](https://github.com/flutter/games)（研究时 main 为 `e3ba3c566e332c6f6c0dd54ce2a6306b7abf114b`）的根 README、目录树、LICENSE，以及：
 
 - [`templates/card/README.md`](https://github.com/flutter/games/blob/e3ba3c566e332c6f6c0dd54ce2a6306b7abf114b/templates/card/README.md)：它是带菜单、设置、声音、拖放和最小状态管理的**卡牌/棋盘游戏壳**，不是斗地主实现。
-- `templates/card/lib/game_internals/board_state.dart`：模型与展示分离、监听手牌变化、手牌为空触发胜利；本作将规则、动作生成、叫分和结算独立为纯规则模块 `engine.mjs`，UI 不另写一套判牌。
+- `templates/card/lib/game_internals/board_state.dart`：模型与展示分离、监听手牌变化、手牌为空触发胜利；本作将规则、动作生成、叫分和结算独立为纯规则模块 `engine.js`，UI 不另写一套判牌。
 - `templates/card/lib/play_session/player_hand_widget.dart`：手牌按可用空间 Wrap、卡牌是独立交互组件。本作用独立牌组件和响应式手牌行，手机竖屏分两行，点选 / 横向拖扫，而不是搬用 Flutter 拖放 API。
-- `templates/card/lib/audio/audio_controller.dart`：独立音频 facade、music / sfx 分轨设置、应用生命周期暂停恢复；本作用 `audio.mjs` 的 WebAudio facade，首次手势解锁、独立开关和总音量、后台/合集切换暂停。
+- `templates/card/lib/audio/audio_controller.dart`：独立音频 facade、music / sfx 分轨设置、应用生命周期暂停恢复；本作用 `audio.js` 的 WebAudio facade，首次手势解锁、独立开关和总音量、后台/合集切换暂停。
 - `templates/card/lib/style/responsive_screen.dart` 和 `templates/basic/README.md`：布局根据可用尺寸适配、按功能组织。本作分为引擎、音频、持久化、展示与测试，无构建依赖。
 
 目录树与上述规则模型中**未发现斗地主实现**；所有斗地主规则、AI、计分、界面、合成音效与旋律均为此站新实现，不声称来自 Flutter 项目，也未复制其 Dart 源码/图片/字体/声音。参考项目代码使用 BSD 风格（三条款）许可，保留通知见 `REFERENCE-LICENSE.txt`。其根 LICENSE 还汇集部分第三方许可；卡牌模板 README 标明音乐为 Mr Smith 的 CC-BY、音效为 CC0，字体有自己的许可；本作没有使用这些素材。
@@ -57,3 +57,5 @@ AI 是启发式而非搜索/机器学习最优策略；仅本机浏览器一人�
 - Node 测试 **27/27** 通过；**3000** 局完整 AI 对弈、**97,744** 次出牌/不出、**711** 次全不叫重发，单局最多 **71** 步（含叫分/重发）；无非法动作、丢牌/重复牌、无法终局或非零和结算。
 - 四个指定视口全部通过布局/触摸/拖扫/键盘/托管结算/持久化/暂停测试，无水平或垂直溢出，JS pageerror **0**。叫分尚未结束时底牌不揭露。
 - SW v13 作用域、v12 缓存清理、大厅不预拉游戏、已访问游戏离线可玩、未访问游戏离线提示均通过。150ms 延迟、64KB/s 下载限速冷启约 **0.79s**，离线二开约 **0.04s**（本机 Chromium 实测，非真实移动网络保证）。
+
+部署兼容性：运行时 ES Modules 使用 `.js` 扩展名，兼容未配置 `.mjs` MIME 的静态 nginx；`package.json` 的 `type: module` 同时确保 Node 规则测试按 ESM 加载。无需改 nginx 或重启服务。

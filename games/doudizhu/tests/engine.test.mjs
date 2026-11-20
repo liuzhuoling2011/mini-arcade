@@ -12,8 +12,8 @@ import {
   bidAI,
   conserved,
   settle,
-} from "../engine.mjs";
-import { defaults, load, save, record } from "../storage.mjs";
+} from "../engine.js";
+import { defaults, load, save, record } from "../storage.js";
 const cards = (rs) => {
   const count = {};
   return rs.map((r) =>

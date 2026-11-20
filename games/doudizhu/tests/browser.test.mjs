@@ -230,10 +230,10 @@ try {
   }));
   for (const file of [
     "frame.html",
-    "engine.mjs",
-    "app.mjs",
-    "storage.mjs",
-    "audio.mjs",
+    "engine.js",
+    "app.js",
+    "storage.js",
+    "audio.js",
     "table.css",
   ])
     assert(

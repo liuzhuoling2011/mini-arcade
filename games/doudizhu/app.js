@@ -10,9 +10,9 @@ import {
   rank,
   label,
   sort,
-} from "./engine.mjs";
-import { load, save, record } from "./storage.mjs";
-import { TableAudio } from "./audio.mjs";
+} from "./engine.js";
+import { load, save, record } from "./storage.js";
+import { TableAudio } from "./audio.js";
 const $ = (id) => document.getElementById(id),
   names = ["你", "林间风", "月下客"];
 let data = load(),
